@@ -240,7 +240,55 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 								validEnts++;
                                 entityArray[i].Pos = pos;
 								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x20, { 0xE8, 0x0 });
-                                std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 20);
+                                std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 30);
+
+                                
+                                
+                                if (EntName.find("Boar") != std::string::npos)
+                                {
+                                    std::ostringstream oss;
+                                    oss << "Boar" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                    std::string Text = oss.str();
+                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                    {
+                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                        {
+                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                            continue;
+                                        }
+
+                                    }
+                                }                                
+                                if (EntName.find("Deer") != std::string::npos)
+                                {
+                                    std::ostringstream oss;
+                                    oss << "Deer" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                    std::string Text = oss.str();
+                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                    {
+                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                        {
+                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                            continue;
+                                        }
+
+                                    }
+                                }
+                                if (EntName.find("Hare") != std::string::npos)
+                                {
+                                    std::ostringstream oss;
+                                    oss << "Hare" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                    std::string Text = oss.str();
+                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                    {
+                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                        {
+                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                            continue;
+                                        }
+
+                                    }
+                                }
                                 std::ostringstream oss;
                                 oss << EntName << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
                                 std::string Text = oss.str();
@@ -248,8 +296,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                                 {
                                     if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
                                     {
-
                                         Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                        continue;
                                     }
 
                                 }
