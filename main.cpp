@@ -26,8 +26,8 @@ uintptr_t ModuleBaseAdresse = 0x0;
 const wchar_t* ModuleName = L"WHGame.DLL";
 uintptr_t CamPosAdr = 0x5209DA8;
 uintptr_t CamRotAdr = 0x512C844;
-uintptr_t FOVAdr = 0x0;
-uintptr_t TestPosAdr = 0x1B010D407E0;
+static float maxDistance = 500.0f;
+
 Vector3 CamPos = { 0.0f, 0.0f,0.0f };
 Vector3 CamRot = { 0.0f, 0.0f,0.0f };
 float FOV = 0.0f;
@@ -184,6 +184,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
         ImGui::SliderFloat("FPS", &FPSCap, 1.f, 170.f);
         ImGui::ColorEdit4("color", (float*)&clear_color);
+
+        // Slider für maximale Distance
+        ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 2000.f);
+
         // Display CamPos
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", CamPos.x, CamPos.y, CamPos.z);
         // Display CamRot
@@ -208,26 +212,12 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (Hax.ProcID)
         {
 			CamPos = Hax.Read<Vector3>(CamPosAdr + ModuleBaseAdresse);
-            CamRot.x = Hax.Read<float>(CamRotAdr + ModuleBaseAdresse);
-            CamRot.y = Hax.Read<float>(CamRotAdr + ModuleBaseAdresse + 0x20);
-			FOV = 100.0f;
-			TestPos = Hax.Read<Vector3>(0x24F148573B0);
-
-            uintptr_t CCryAction = ModuleBaseAdresse + 0x53E6068;		// CCryAction
-            static std::vector<unsigned int> offsets{ 0x88, 0xA40, 0x38 };	// CCryAction->IActionGame->IActor->CEntity
-            uintptr_t LocalP = 0x0;
-
-			ReadProcessMemory(Hax.hProcess, (LPVOID)FindDMAAddy(Hax.hProcess, CCryAction, offsets), &LocalP, sizeof(LocalP), NULL);
-            
-                
-            
-            
-            
+                                    
             const int entityCount = 2500;
             
             Ent entityArray[entityCount];
             ReadProcessMemory(Hax.hProcess, (LPVOID)MatrixAdr, &Matrix, sizeof(Matrix), NULL);
-            MatrixAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x05208CF0), { 0x2D0,0x100,0x28,0xF8,0x540 });
+            MatrixAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x0526C9A0), { 0x50,0x120,0xB0,0x4C8 });
             uintptr_t EntListAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x052A39D0), { 0x0 });
 
             validEnts = 0;
@@ -241,12 +231,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 						entityArray[i].EntPosAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x18, { 0x30 });
 
                         Vector3 pos = { 0,0,0 };
-                        /*ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr), &pos.x, sizeof(pos.x), nullptr);
-                        ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr + 0x10), &pos.y, sizeof(pos.y), nullptr);
-                        ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr + 0x20), &pos.z, sizeof(pos.z), nullptr);*/
+                        
                         if (ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr), &pos, sizeof(pos), nullptr)) {
                             float Distance = Distance3D(CamPos, pos);
-							if (Distance < 500)
+							if (Distance < maxDistance)
 							{
 								validEnts++;
                                 entityArray[i].Pos = pos;
