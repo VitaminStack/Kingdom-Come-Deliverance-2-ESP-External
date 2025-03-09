@@ -240,23 +240,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                                 entityArray[i].Pos = pos;
 								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x18, { 0xE8, 0x0 });
                                 std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 30);
-                                                     
-                                if (EntName.find("ksuc_man") != std::string::npos)
-                                {
-                                    std::ostringstream oss;
-                                    oss << "Guard" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
-                                    std::string Text = oss.str();
-
-                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
-                                    {
-                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
-                                        {
-                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
-                                            continue;
-                                        }
-
-                                    }
-                                }
+                                  
                                 if (EntName.find("tvez") != std::string::npos)
                                 {
                                     std::ostringstream oss;
