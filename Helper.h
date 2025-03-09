@@ -15,6 +15,10 @@
 #include <iostream>
 #include <cmath>
 
+
+
+
+
 extern class InitHax
 {
 public:
@@ -672,4 +676,23 @@ Vector2 WorldToScreen(Vector3 worldPoint, Vector3 CamPos, Vector3 Rotation, floa
 	VScreen.y = (1.0f - ndcY) * 0.5f * screenHeight;
 
 	return VScreen;
+}
+
+void DebugBones(HANDLE hProcess, ImDrawList* drawList, float viewMatrix[16], uintptr_t boneArray, int boneCount ,ImU32 color = IM_COL32(255, 0, 0, 255)) {
+	if (!boneArray || boneCount <= 0) return;
+
+	for (int i = 0; i < boneCount; ++i) {
+		Vector3 bonePos = { 0, 0, 0 };
+
+		if (!ReadProcessMemory(hProcess, (LPVOID)(boneArray + 0x8 + (i * 0x38)), &bonePos, sizeof(Vector3), nullptr)) {
+			continue;
+		}
+
+		Vector2 screenPos;
+		if (WorldToScreenFarCry(bonePos, screenPos, viewMatrix, 2560, 1440)) {
+			if (screenPos.x > 0 && screenPos.x < 2560 && screenPos.y > 0 && screenPos.y < 1440) {
+				drawList->AddCircleFilled(ImVec2(screenPos.x, screenPos.y), 3.0f, color);
+			}
+		}
+	}
 }

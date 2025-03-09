@@ -26,7 +26,7 @@ uintptr_t ModuleBaseAdresse = 0x0;
 const wchar_t* ModuleName = L"WHGame.DLL";
 uintptr_t CamPosAdr = 0x5209DA8;
 uintptr_t CamRotAdr = 0x512C844;
-static float maxDistance = 500.0f;
+static float maxDistance = 100.0f;
 
 Vector3 CamPos = { 0.0f, 0.0f,0.0f };
 Vector3 CamRot = { 0.0f, 0.0f,0.0f };
@@ -37,7 +37,7 @@ Vector2 ScreenPos = { 0.f, 0.f };
 uintptr_t MatrixAdr = 0x0;
 float Matrix[16];
 
-Vector2 Screen = { 2560.f, 1440.f };
+Vector2 Screen = { 2560, 1440 };
 float FPSCap = 169.f;
 bool openMenu = false;
 bool Clickability = false;
@@ -241,19 +241,54 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x18, { 0xE8, 0x0 });
                                 std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 30);
                                                      
-                                
-                                std::ostringstream oss;
-                                oss << EntName << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
-                                std::string Text = oss.str();
-                                if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                if (EntName.find("ksuc_man") != std::string::npos)
                                 {
-                                    if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
-                                    {
-                                        Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
-                                        continue;
-                                    }
+                                    std::ostringstream oss;
+                                    oss << "Guard" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                    std::string Text = oss.str();
 
+                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                    {
+                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                        {
+                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                            continue;
+                                        }
+
+                                    }
                                 }
+                                if (EntName.find("tvez") != std::string::npos)
+                                {
+                                    std::ostringstream oss;
+                                    oss << "Dog" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                    std::string Text = oss.str();
+
+                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                    {
+                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                        {
+                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                            continue;
+                                        }
+
+                                    }
+                                }
+                                else
+                                {
+                                    std::ostringstream oss;
+                                    oss << EntName << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                    std::string Text = oss.str();
+
+                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                    {
+                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                        {
+                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                            continue;
+                                        }
+
+                                    }
+                                }                                                
 							}                            
                         }
                     }
