@@ -250,7 +250,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 							{
 								validEnts++;
                                 entityArray[i].Pos = pos;
-								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0xE8, { 0x0 });
+								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x18, { 0xE8, 0x0 });
                                 std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 30);
                                                      
                                 
