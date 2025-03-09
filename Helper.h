@@ -6,17 +6,12 @@
 #include <sstream>
 #include <d3dx9.h>
 #include <directxmath.h>
-#include "glm/glm.hpp"
-#include "glm/gtc/matrix_transform.hpp"
 #include <psapi.h>
 #include <iomanip>
 #include <TlHelp32.h>
 #include <tchar.h>  
 #include <iostream>
 #include <cmath>
-
-
-
 
 
 extern class InitHax
@@ -114,8 +109,6 @@ public:
 		return hProcess;
 	}
 };
-
-
 
 struct Vector2
 {
@@ -332,8 +325,6 @@ public:
 };
 uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, std::vector<unsigned int> offsets);
 uintptr_t ScanAOB(std::vector<int> signature, const wchar_t* ModBaseName, HANDLE hProcess, DWORD ProcID);
-std::string getNameFromID(int ID, uintptr_t GNames);
-void ReadMemory(const void* address, void* buffer, size_t size);
 D3DXMATRIX ToMatrix(Vector3 Rotation);
 
 
@@ -350,51 +341,6 @@ uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, std::vector<unsigned int> off
 	}
 	return addr;
 }
-std::string getNameFromID(int ID, uintptr_t GNames)
-{
-	char charName[35];
-	uintptr_t fNamePtr = *(uintptr_t*)(GNames + int(ID / 0x4000) * 0x8);
-	uintptr_t fName = *(uintptr_t*)(fNamePtr + 0x8 * int(ID % 0x4000));
-	const void* bName = (uintptr_t*)(fName + 0x10);
-	ReadMemory(bName, charName, sizeof(charName));
-	std::stringstream ss;
-	std::string Name;
-	ss << charName;
-	ss >> Name;
-
-	return Name;
-}
-char* getNameFromIDEx(int ID, uintptr_t GNamesAdr, HANDLE hProcess)
-{
-	uintptr_t GNames;
-	uintptr_t fNamePtr;
-	uintptr_t fName;
-	char charName[20];
-	ReadProcessMemory(hProcess, (uintptr_t*)(GNamesAdr + int(ID / 0x4000) * 0x8), &fNamePtr, sizeof(fNamePtr), nullptr);
-	ReadProcessMemory(hProcess, (uintptr_t*)(0x147720E50 + 0x8 * int(ID % 0x4000)), &fName, sizeof(fName), nullptr);
-	ReadProcessMemory(hProcess, (uintptr_t*)(fName + 0x10), &charName, sizeof(charName), nullptr);
-	
-
-	return charName;
-}
-char GetNameFromFName(int ID, uintptr_t GNamesAdr, HANDLE hProcess)
-{
-	char Name;
-	DWORD_PTR fNamePtr;
-	DWORD_PTR fName;
-	// Read the fNamePtr
-	ReadProcessMemory(hProcess, (LPCVOID)(GNamesAdr + int(ID / 0x4000) * 0x8), &fNamePtr, sizeof(DWORD_PTR), NULL);
-
-	// Read the fName
-	ReadProcessMemory(hProcess, (LPCVOID)(GNamesAdr + 0x8 * int(ID % 0x4000)), &fName, sizeof(DWORD_PTR), NULL);
-	
-	// Read the text struct
-	ReadProcessMemory(hProcess, (LPCVOID)(fName + 0x10), &Name, sizeof(Name), NULL);
-	
-
-	return Name;
-
-}
 void ReadMemory(const void* address, void* buffer, size_t size)
 {
 	DWORD back = NULL;
@@ -405,37 +351,6 @@ void ReadMemory(const void* address, void* buffer, size_t size)
 
 		VirtualProtect((LPVOID)address, size, back, &back);
 	}
-}
-bool UEWorldToScreen(const Vector3& worldLoc, Vector2& screenPos, Vector3 Rotation, Vector3 CamPos, float FOV, float ScreenHöhe, float ScreenBreite)
-{
-	D3DMATRIX tempMatrix = ToMatrix(Rotation); // Matrix
-
-	float PI = 3.1415926535897932f;
-
-
-	Vector3 vDelta;
-	vDelta.x = worldLoc.x - CamPos.x;
-	vDelta.y = worldLoc.y - CamPos.y;
-	vDelta.z = worldLoc.z - CamPos.z;
-
-	Vector3 vTransformed = {
-		vDelta.Dot({ tempMatrix.m[1][0], tempMatrix.m[1][1], tempMatrix.m[1][2] }),
-		vDelta.Dot({ tempMatrix.m[2][0], tempMatrix.m[2][1], tempMatrix.m[2][2] }),
-		vDelta.Dot({ tempMatrix.m[0][0], tempMatrix.m[0][1], tempMatrix.m[0][2] })
-	};
-
-	if (vTransformed.z < 1.f)
-		vTransformed.z = 1.f;
-	float screenCenterX = ScreenBreite / 2.0f;
-	float screenCenterY = ScreenHöhe / 2.0f;
-
-	screenPos.x = (screenCenterX)+vTransformed.x * (screenCenterX / tanf(FOV * PI / 360.f)) / vTransformed.z;
-	screenPos.y = (screenCenterY - vTransformed.y * (screenCenterX / tanf(FOV * PI / 360.f)) / vTransformed.z);
-
-	if (screenPos.x > ScreenBreite || screenPos.x < 0.f || screenPos.y > ScreenHöhe || screenPos.y < 0.f)
-		return false;
-
-	return true;
 }
 bool WorldToScreenFarCry(Vector3 pos, Vector2& screen, float matrix[16], int windowWidth, int windowHeight)
 {
@@ -459,7 +374,6 @@ bool WorldToScreenFarCry(Vector3 pos, Vector2& screen, float matrix[16], int win
 	screen.y = -(windowHeight / 2 * NDC.y) + (NDC.y + windowHeight / 2);
 	return true;
 }
-
 D3DXMATRIX ToMatrix(Vector3 Rotation)
 {
 	Vector3 origin;
@@ -500,15 +414,6 @@ D3DXMATRIX ToMatrix(Vector3 Rotation)
 
 	return matrix;
 
-}
-std::string replaceAll(std::string& str, const std::string& from, const std::string& to) {
-
-	size_t start_pos = 0;
-	while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
-		str.replace(start_pos, from.length(), to);
-		start_pos += to.length(); // In case 'to' contains 'from', like replacing 'x' with 'yx'
-	}
-	return str;
 }
 float CalcMiddlePos(float vScreenX, const char* Text)
 {
@@ -570,112 +475,6 @@ uintptr_t GetAddressFromSignatureEx(std::vector<int> signature, HANDLE hProcess,
 		}
 	}
 	return NULL;
-}
-uintptr_t ScanAOB(std::vector<int> signature, const wchar_t* ModBaseName, HANDLE hProcess, DWORD ProcID)
-{
-	DWORD pSize;
-	uintptr_t Modulebase = GetModuleBaseAddressEx(ModBaseName, ProcID, pSize);
-	uintptr_t signature_pointer = GetAddressFromSignatureEx(signature, hProcess, Modulebase, pSize);
-
-	return signature_pointer;
-}
-void DetourEx(HANDLE hProcess, LPVOID targetFunctionAddress, LPVOID codecaveAddress)
-{
-	SIZE_T bytesWritten;
-
-
-	for (int i = 0; i < 100; i++)
-	{
-		BYTE clearbyte[] = { 0x90 };
-		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + i), &clearbyte, sizeof(clearbyte), NULL);
-	}
-
-
-	//Jmp zur CodeCave auf die originale Func
-	BYTE jmpBytes[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	WriteProcessMemory(hProcess, targetFunctionAddress, jmpBytes, sizeof(jmpBytes), NULL);
-	WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)targetFunctionAddress + 6), &codecaveAddress, sizeof(codecaveAddress), NULL);
-
-	
-	BYTE geklautebytes[] = {
-		0x48, 0x8B, 0x89, 0xB0, 0x00, 0x00, 0x00, 0x0F, 0x28, 0xF3, 0x49, 0x8B, 0xD8, 0x48, 0x85, 0xC9
-	};
-	WriteProcessMemory(hProcess, codecaveAddress, geklautebytes, sizeof(geklautebytes), &bytesWritten); // wiederherstellen der ursprünglichen funktion in CodeCave
-
-	
-	BYTE movCode[] = {
-	0x48, 0x89, 0x0D, 0x50, 0x00, 0x00, 0x00  // MOV [codecave + 0x50], RCX
-	};
-	WriteProcessMemory(hProcess, (LPBYTE)codecaveAddress + 20, movCode, sizeof(movCode), &bytesWritten);
-	
-
-	// Write the JMP code to the codecave	
-	BYTE backjmpBytes[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	uintptr_t backrelativeBackOffset = (uintptr_t)((uintptr_t)targetFunctionAddress + ((uintptr_t)0x10)); //0xE = 14 bytes
-	WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + 30), backjmpBytes, sizeof(backjmpBytes), NULL);	
-	WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + 36), &backrelativeBackOffset, sizeof(backrelativeBackOffset), NULL);
-			
-
-}
-void NopFunc(HANDLE hProcess, LPVOID targetFunctionAddress, int bytes)
-{
-	byte* Nopbytes = new byte[bytes];
-	for (int i = 0; i < bytes; i++)
-	{
-		Nopbytes[i] = 0x90;
-	}
-	WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)targetFunctionAddress), Nopbytes, sizeof(Nopbytes), NULL);
-}
-
-
-// Eine Funktion, die einen 3D-Punkt aus der Weltkoordinate in Bildschirmkoordinaten umwandelt
-Vector2 WorldToScreen(Vector3 worldPoint, Vector3 CamPos, Vector3 Rotation, float FOV, float screenWidth, float screenHeight)
-{
-	DirectX::XMFLOAT4X4 worldMatrix;
-	float AspektRat = screenHeight / screenWidth;
-
-	// Setze die Weltmatrix auf die Einheitsmatrix
-	DirectX::XMStoreFloat4x4(&worldMatrix, DirectX::XMMatrixIdentity());
-
-	// Anwenden von Translation, Rotation und Skalierung auf die Weltmatrix
-	DirectX::XMStoreFloat4x4(&worldMatrix,
-		DirectX::XMMatrixScaling(1, 1, 1) *
-		DirectX::XMMatrixRotationRollPitchYaw(Rotation.x, Rotation.y, Rotation.z) *
-		DirectX::XMMatrixTranslation(worldPoint.x, worldPoint.y, worldPoint.z));
-
-	DirectX::XMVECTOR forward = DirectX::XMVectorSubtract(DirectX::XMVectorSet(worldPoint.x, worldPoint.y, worldPoint.z, 0), DirectX::XMVectorSet(CamPos.x, CamPos.y, CamPos.z, 0));
-	forward = DirectX::XMVector3Normalize(forward);
-	DirectX::XMVECTOR right = DirectX::XMVector3Cross(forward, DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-	right = DirectX::XMVector3Normalize(right);
-	DirectX::XMVECTOR up = DirectX::XMVector3Cross(right, forward);
-	up = DirectX::XMVector3Normalize(up);
-
-	DirectX::XMFLOAT4X4 viewMatrix;
-	DirectX::XMStoreFloat4x4(&viewMatrix, DirectX::XMMatrixSet(
-		DirectX::XMVectorGetX(right), DirectX::XMVectorGetX(up), -DirectX::XMVectorGetX(forward), 0.0f,
-		DirectX::XMVectorGetY(right), DirectX::XMVectorGetY(up), -DirectX::XMVectorGetY(forward), 0.0f,
-		DirectX::XMVectorGetZ(right), DirectX::XMVectorGetZ(up), -DirectX::XMVectorGetZ(forward), 0.0f,
-		-DirectX::XMVectorGetX(DirectX::XMVector3Dot(right, DirectX::XMVectorSet(CamPos.x, CamPos.y, CamPos.z, 0))),
-		-DirectX::XMVectorGetX(DirectX::XMVector3Dot(up, DirectX::XMVectorSet(CamPos.x, CamPos.y, CamPos.z, 0))),
-		DirectX::XMVectorGetX(DirectX::XMVector3Dot(forward, DirectX::XMVectorSet(CamPos.x, CamPos.y, CamPos.z, 0))),
-		1.0f));
-
-	DirectX::XMFLOAT4X4 ProjectionMatrix;
-	DirectX::XMStoreFloat4x4(&ProjectionMatrix, DirectX::XMMatrixPerspectiveFovLH(glm::radians(FOV), AspektRat, 0.1f, 100.f));
-	DirectX::XMFLOAT4X4 WVPMatrix;
-	DirectX::XMStoreFloat4x4(&WVPMatrix, DirectX::XMLoadFloat4x4(&worldMatrix) * DirectX::XMLoadFloat4x4(&viewMatrix) * DirectX::XMLoadFloat4x4(&ProjectionMatrix));
-
-	DirectX::XMVECTOR worldPosition = DirectX::XMVectorSet(worldPoint.x, worldPoint.y, worldPoint.z, 1.0f);
-	DirectX::XMVECTOR transformedPosition = DirectX::XMVector4Transform(worldPosition, DirectX::XMLoadFloat4x4(&WVPMatrix));
-
-	float ndcX = DirectX::XMVectorGetX(transformedPosition) / DirectX::XMVectorGetW(transformedPosition);
-	float ndcY = DirectX::XMVectorGetY(transformedPosition) / DirectX::XMVectorGetW(transformedPosition);
-
-	Vector2 VScreen;
-	VScreen.x = (ndcX + 1.0f) * 0.5f * screenWidth;
-	VScreen.y = (1.0f - ndcY) * 0.5f * screenHeight;
-
-	return VScreen;
 }
 
 void DebugBones(HANDLE hProcess, ImDrawList* drawList, float viewMatrix[16], uintptr_t boneArray, int boneCount ,ImU32 color = IM_COL32(255, 0, 0, 255)) {

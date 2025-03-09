@@ -16,9 +16,6 @@
     <Filter Include="imgui">
       <UniqueIdentifier>{d9616e63-ef04-4d75-9b7c-02f03f9939d3}</UniqueIdentifier>
     </Filter>
-    <Filter Include="glm">
-      <UniqueIdentifier>{fdc6e882-98ea-4ca1-bbae-315324032877}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -73,9 +70,6 @@
     </ClInclude>
     <ClInclude Include="imgui\imstb_truetype.h">
       <Filter>imgui</Filter>
-    </ClInclude>
-    <ClInclude Include="glm\gtc\matrix_transform.hpp">
-      <Filter>glm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
