@@ -174,11 +174,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         const char* MenuBar;
         if (Hax.ProcID)
         {
-            MenuBar = "Spiel gefunden!";
+            MenuBar = "Game found!";
         }
         else
         {
-            MenuBar = "Spiel nicht gefunden!";
+            MenuBar = "Game not found!";
         }
         ImGui::Begin(MenuBar);
         ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
