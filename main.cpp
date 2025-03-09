@@ -25,13 +25,10 @@ static ID3D11BlendState*        m_pBlendState = nullptr;
 uintptr_t ModuleBaseAdresse = 0x0;
 const wchar_t* ModuleName = L"WHGame.DLL";
 uintptr_t CamPosAdr = 0x5209DA8;
-uintptr_t CamRotAdr = 0x512C844;
 static float maxDistance = 100.0f;
 
 Vector3 CamPos = { 0.0f, 0.0f,0.0f };
-Vector3 CamRot = { 0.0f, 0.0f,0.0f };
 float FOV = 0.0f;
-Vector3 TestPos = { 0.0f, 0.0f,0.0f };
 Vector2 ScreenPos = { 0.f, 0.f };
 
 uintptr_t MatrixAdr = 0x0;
@@ -190,12 +187,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         // Display CamPos
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", CamPos.x, CamPos.y, CamPos.z);
-        // Display CamRot
-        ImGui::Text("CamRot: (%.3f, %.3f, %.3f)", CamRot.x, CamRot.y, CamRot.z);
-        // Display FOV
-        ImGui::Text("FOV: %.3f", FOV);
         // Display TestPos
-        ImGui::Text("TestPos: (%.3f, %.3f, %.3f)", TestPos.x, TestPos.y, TestPos.z);
         ImGui::Text("ScreenPos: (%.3f, %.3f)", ScreenPos.x, ScreenPos.y);
         ImGui::Text("Valid Ents: %d", validEnts);
         ImGui::End();
