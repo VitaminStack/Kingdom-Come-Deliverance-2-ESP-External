@@ -24,7 +24,7 @@ static ID3D11BlendState*        m_pBlendState = nullptr;
 
 uintptr_t ModuleBaseAdresse = 0x0;
 const wchar_t* ModuleName = L"WHGame.DLL";
-uintptr_t CamPosAdr = 0x512C888;
+uintptr_t CamPosAdr = 0x5209DA8;
 uintptr_t CamRotAdr = 0x512C844;
 uintptr_t FOVAdr = 0x0;
 uintptr_t TestPosAdr = 0x1B010D407E0;
@@ -132,8 +132,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     DWORD size;
     int validEnts = 0;
 	ModuleBaseAdresse = GetModuleBaseAddressEx(ModuleName, Hax.ProcID, size);
-    MatrixAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x0526A720), { 0x50, 0x628 });
-	uintptr_t EntListAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x054BE4C8), { 0xF8,0x138,0xB8,0x0 });
+    
 
 
 
@@ -204,22 +203,32 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         //TestESP
 		
+
+
         if (Hax.ProcID)
         {
 			CamPos = Hax.Read<Vector3>(CamPosAdr + ModuleBaseAdresse);
             CamRot.x = Hax.Read<float>(CamRotAdr + ModuleBaseAdresse);
             CamRot.y = Hax.Read<float>(CamRotAdr + ModuleBaseAdresse + 0x20);
 			FOV = 100.0f;
-			//TestPos = { 1495.1f, 1987.0f, 17.6f };
 			TestPos = Hax.Read<Vector3>(0x24F148573B0);
-            //Vector3 Pos = TestPos;
+
+            uintptr_t CCryAction = ModuleBaseAdresse + 0x53E6068;		// CCryAction
+            static std::vector<unsigned int> offsets{ 0x88, 0xA40, 0x38 };	// CCryAction->IActionGame->IActor->CEntity
+            uintptr_t LocalP = 0x0;
+
+			ReadProcessMemory(Hax.hProcess, (LPVOID)FindDMAAddy(Hax.hProcess, CCryAction, offsets), &LocalP, sizeof(LocalP), NULL);
+            
+                
             
             
-            const int entityCount = 200;
+            
+            const int entityCount = 2500;
             
             Ent entityArray[entityCount];
             ReadProcessMemory(Hax.hProcess, (LPVOID)MatrixAdr, &Matrix, sizeof(Matrix), NULL);
-
+            MatrixAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x05208CF0), { 0x2D0,0x100,0x28,0xF8,0x540 });
+            uintptr_t EntListAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x052A39D0), { 0x0 });
 
             validEnts = 0;
             for (int i = 0; i < entityCount; ++i) {
@@ -229,66 +238,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                     if (!IsBadReadPtr(&EntBase, sizeof(uintptr_t)))
                     {
                         entityArray[i].EntBase = EntBase;
-                        entityArray[i].EntPosAdr = (entityArray[i].EntBase + 0xA0);
+						entityArray[i].EntPosAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x18, { 0x30 });
 
                         Vector3 pos = { 0,0,0 };
-                        if (ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr),
-                            &pos, sizeof(pos), nullptr)) {
+                        /*ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr), &pos.x, sizeof(pos.x), nullptr);
+                        ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr + 0x10), &pos.y, sizeof(pos.y), nullptr);
+                        ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr + 0x20), &pos.z, sizeof(pos.z), nullptr);*/
+                        if (ReadProcessMemory(Hax.hProcess, (LPVOID)(entityArray[i].EntPosAdr), &pos, sizeof(pos), nullptr)) {
                             float Distance = Distance3D(CamPos, pos);
-							if (Distance < 1000)
+							if (Distance < 500)
 							{
 								validEnts++;
                                 entityArray[i].Pos = pos;
-								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x20, { 0xE8, 0x0 });
+								uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0xE8, { 0x0 });
                                 std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 30);
-
+                                                     
                                 
-                                
-                                if (EntName.find("Boar") != std::string::npos)
-                                {
-                                    std::ostringstream oss;
-                                    oss << "Boar" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
-                                    std::string Text = oss.str();
-                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
-                                    {
-                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
-                                        {
-                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
-                                            continue;
-                                        }
-
-                                    }
-                                }                                
-                                if (EntName.find("Deer") != std::string::npos)
-                                {
-                                    std::ostringstream oss;
-                                    oss << "Deer" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
-                                    std::string Text = oss.str();
-                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
-                                    {
-                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
-                                        {
-                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
-                                            continue;
-                                        }
-
-                                    }
-                                }
-                                if (EntName.find("Hare") != std::string::npos)
-                                {
-                                    std::ostringstream oss;
-                                    oss << "Hare" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
-                                    std::string Text = oss.str();
-                                    if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
-                                    {
-                                        if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
-                                        {
-                                            Drawlist->AddText(ImVec2(ScreenPos.x, ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
-                                            continue;
-                                        }
-
-                                    }
-                                }
                                 std::ostringstream oss;
                                 oss << EntName << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
                                 std::string Text = oss.str();
