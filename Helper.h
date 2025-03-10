@@ -12,7 +12,7 @@
 #include <tchar.h>  
 #include <iostream>
 #include <cmath>
-
+#include <chrono>
 
 extern class InitHax
 {
@@ -109,6 +109,7 @@ public:
 		return hProcess;
 	}
 };
+
 
 struct Vector2
 {
@@ -495,3 +496,97 @@ void DebugBones(HANDLE hProcess, ImDrawList* drawList, float viewMatrix[16], uin
 		}
 	}
 }
+
+
+class ExBytePatcher {
+private:
+	HANDLE hProcess;
+	uintptr_t address;
+	std::vector<BYTE> originalBytes;
+	size_t patchSize;
+	bool isPatched = false;  // Ob der Patch aktiv ist
+
+public:
+	ExBytePatcher(HANDLE process, uintptr_t addr, size_t size)
+		: hProcess(process), address(addr), patchSize(size) {
+	}
+
+	void TogglePatch(bool enablePatch) {
+		if (enablePatch && !isPatched) {
+			if (Patch()) {
+				isPatched = true;
+			}
+		}
+		else if (!enablePatch && isPatched) {
+			if (Restore()) {
+				isPatched = false;
+			}
+		}
+	}
+
+	bool Patch() {
+		if (originalBytes.empty()) {
+			originalBytes.resize(patchSize);
+			ReadProcessMemory(hProcess, (LPCVOID)address, originalBytes.data(), patchSize, NULL);
+		}
+		std::vector<BYTE> nopBytes(patchSize, 0x90);
+		return WriteProcessMemory(hProcess, (LPVOID)address, nopBytes.data(), patchSize, NULL);
+	}
+
+	bool Restore() {
+		if (originalBytes.empty()) return false;
+		return WriteProcessMemory(hProcess, (LPVOID)address, originalBytes.data(), patchSize, NULL);
+	}
+
+	bool IsPatched() { return isPatched; }
+};
+class FlyHack {
+private:
+	HANDLE hProcess;
+	uintptr_t velocityAddress;
+	float velocity = 0.0f;
+	const float maxVelocity = 15.0f;  // Maximale Geschwindigkeit (niedriger für smooth Movement)
+	const float acceleration = 10.0f; // Beschleunigung pro Sekunde (kleiner für langsame Steigerung)
+	const float deceleration = 1.0f; // Verlangsamung pro Sekunde
+
+	std::chrono::steady_clock::time_point lastUpdate; // Zeitstempel für Delta Time
+
+public:
+	FlyHack(HANDLE process, uintptr_t baseAddress)
+		: hProcess(process) {
+		velocityAddress = FindDMAAddy(process, baseAddress + 0x053F84E0, { 0x0, 0x300, 0x38, 0xC0, 0xC4 });
+		lastUpdate = std::chrono::steady_clock::now();
+	}
+
+	void Update() {
+		// Delta Time berechnen
+		auto now = std::chrono::steady_clock::now();
+		float deltaTime = std::chrono::duration<float>(now - lastUpdate).count();
+		lastUpdate = now;
+
+		if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
+			// Erhöhe Geschwindigkeit mit Delta Time
+			velocity += acceleration;
+			if (velocity > maxVelocity) velocity = maxVelocity;
+		}
+		else if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
+			// Verringere Geschwindigkeit (sinkt nach unten)
+			velocity -= acceleration;
+			if (velocity < -maxVelocity) velocity = -maxVelocity;  // Negativer Max-Speed für Sinken
+		}
+		else {
+			// Verlangsamt Geschwindigkeit sanft mit Delta Time
+			if (velocity > 0.0f) {
+				velocity -= deceleration;
+				if (velocity < 0.0f) velocity = 0.0f;  // Stoppt, wenn nahe 0
+			}
+			else if (velocity < 0.0f) {
+				velocity += deceleration;
+				if (velocity > 0.0f) velocity = 0.0f;  // Stoppt, wenn nahe 0
+			}
+		}
+
+		// Schreibe die aktuelle Geschwindigkeit ins Spiel
+		WriteProcessMemory(hProcess, (LPVOID)velocityAddress, &velocity, sizeof(float), nullptr);
+	}
+};

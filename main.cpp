@@ -27,6 +27,7 @@ const wchar_t* ModuleName = L"WHGame.DLL";
 uintptr_t CamPosAdr = 0x5209DA8;
 uintptr_t CutsceneActive = 0x528C8D8;
 static float maxDistance = 100.0f;
+bool flyhack = false;
 
 Vector3 CamPos = { 0.0f, 0.0f,0.0f };
 float FOV = 0.0f;
@@ -131,7 +132,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     DWORD size;
     int validEnts = 0;
 	ModuleBaseAdresse = GetModuleBaseAddressEx(ModuleName, Hax.ProcID, size);
-    
+    ExBytePatcher patcher(Hax.hProcess, ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
 
 
 
@@ -187,6 +188,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         // Slider für maximale Distance
         ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 2000.f);
 		ImGui::Checkbox("Use Cutscene Check", &useCutsceneCheck);
+        if (ImGui::Checkbox("Flyhack", &flyhack))
+        {
+            patcher.TogglePatch(flyhack);
+        }
         // Display CamPos
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", CamPos.x, CamPos.y, CamPos.z);
         // Display TestPos
@@ -202,7 +207,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         //TestESP
 		
 
-
+        if (flyhack)
+        {
+            FlyHack flyhack(Hax.hProcess, ModuleBaseAdresse);
+            flyhack.Update();  // Velocity anpassen
+        }
         if (Hax.ProcID)
         {
 			CamPos = Hax.Read<Vector3>(CamPosAdr + ModuleBaseAdresse);
