@@ -186,7 +186,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ImGui::ColorEdit4("color", (float*)&clear_color);
 
         // Slider für maximale Distance
-        ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 2000.f);
+        ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 5000.f);
 		ImGui::Checkbox("Use Cutscene Check", &useCutsceneCheck);
         if (ImGui::Checkbox("Flyhack", &flyhack))
         {
