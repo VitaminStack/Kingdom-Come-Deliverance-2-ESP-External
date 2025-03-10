@@ -210,7 +210,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (flyhack)
         {
             FlyHack flyhack(Hax.hProcess, ModuleBaseAdresse);
-            flyhack.Update();  // Velocity anpassen
+            flyhack.Update();
         }
         if (Hax.ProcID)
         {
@@ -280,11 +280,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                                     }
                                 }
                             }
-                        }
-                        else
-                        {
-                            continue;
-                        }
+                        }       
+                        
                     }
                 }
 			}           			
