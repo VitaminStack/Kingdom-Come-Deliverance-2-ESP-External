@@ -113,7 +113,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     io.ConfigFlags |= ImGuiConfigFlags_None;     // Enable Keyboard Controls
-    // Setup Dear ImGui style
+
+	ImFont* DefaultFont = io.Fonts->AddFontDefault();
+    ImFont* MyArialFont = io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/arialbd.ttf", 18.0f); // Arial Bold
+	
+    
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
 
@@ -133,8 +137,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     int validEnts = 0;
 	ModuleBaseAdresse = GetModuleBaseAddressEx(ModuleName, Hax.ProcID, size);
     ExBytePatcher patcher(Hax.hProcess, ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
-
-
+    
 
 
     
@@ -171,6 +174,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         ImDrawList* Drawlist = ImGui::GetForegroundDrawList();
         
+
+        DefaultFont->Scale = 1.0f;
+        ImGui::PushFont(DefaultFont);
+
         const char* MenuBar;
         if (Hax.ProcID)
         {
@@ -202,10 +209,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (io.Framerate > FPSCap && FPSCap != 170.f)
         {
             Sleep(1);
-        }        
-
-        //TestESP
+        }       
+        ImGui::PopFont();
 		
+        
+        MyArialFont->Scale = 1.0f;
+        ImGui::PushFont(MyArialFont);
+        
+        
+
+
 
         if (flyhack)
         {
@@ -246,10 +259,106 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                                     uintptr_t NameAdr = FindDMAAddy(Hax.hProcess, entityArray[i].EntBase + 0x18, { 0xE8, 0x0 });
                                     std::string EntName = Hax.ReadStringFromMemory(Hax.hProcess, NameAdr, 30);
 
-                                    if (EntName.find("tvez") != std::string::npos)
+                                    if (EntName.find("tvez") != std::string::npos || EntName.find("dog") != std::string::npos)
                                     {
                                         std::ostringstream oss;
-                                        oss << "Dog" << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                        oss << "Dog " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 0, 255, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Deer") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Deer " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 255, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Hare") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Hare " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 255, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Cow") != std::string::npos || EntName.find("cow") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Cow " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 255, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Bull") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Bull " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 255, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Pig") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Pig " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 255, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("WildDog") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "WildDog " << std::fixed << std::setprecision(2) << Distance << "m";
                                         std::string Text = oss.str();
 
                                         if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
@@ -262,10 +371,26 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
                                         }
                                     }
-                                    else
+                                    if (EntName.find("Sheep") != std::string::npos)
                                     {
                                         std::ostringstream oss;
-                                        oss << EntName << std::fixed << std::setprecision(2) << "\n" << Distance << "m";
+                                        oss << "Sheep " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 255, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Wolf") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Wolf " << std::fixed << std::setprecision(2) << Distance << "m";
                                         std::string Text = oss.str();
 
                                         if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
@@ -273,6 +398,70 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                                             if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
                                             {
                                                 Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("man") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Man " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 0, 255, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("woman") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Woman " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 0, 255, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Horse") != std::string::npos || EntName.find("horse") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Horse " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(0, 0, 255, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    else
+                                    {
+                                        std::ostringstream oss;
+                                        oss << EntName << " " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(255, 255, 0, 255), Text.c_str());
                                                 continue;
                                             }
 
@@ -296,7 +485,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
 
-        
+        ImGui::PopFont();
         // Rendering
         // Clear render target with transparent color
         float TransparentColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
