@@ -136,7 +136,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     ExBytePatcher patcher(Hax.hProcess, ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
     EntityManager entityManager(Hax.hProcess, ModuleBaseAdresse);
 
-
     
 
             
@@ -196,6 +195,14 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (ImGui::Checkbox("Flyhack", &flyhack))
         {
             patcher.TogglePatch(flyhack);
+        }
+        if (ImGui::Button("screenmaker", ImVec2(100, 20)))
+        {
+            HWND overlayWindow = FindWindow(NULL, L"DebugOverlay"); // Fensterhandle des Overlays finden
+            if (overlayWindow) {
+                DebugScreenshot::SaveOverlayScreenshot(overlayWindow, L"screen");
+            }
+
         }
         // Display CamPos
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", CamPos.x, CamPos.y, CamPos.z);

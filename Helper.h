@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <d3dx9.h>
+#include <d3d11.h>
 #include <directxmath.h>
 #include <psapi.h>
 #include <iomanip>
@@ -17,6 +18,11 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include <gdiplus.h>
+
+
+#pragma comment(lib, "gdiplus.lib")
+
 
 extern class InitHax
 {
@@ -582,6 +588,7 @@ public:
 		WriteProcessMemory(hProcess, (LPVOID)velocityAddress, &velocity, sizeof(float), nullptr);
 	}
 };
+
 struct Entity {
 	uintptr_t baseAddress;
 	uintptr_t posAddress;
@@ -610,9 +617,10 @@ private:
 		{"wilddog", IM_COL32(255, 0, 0, 255)},
 		{"sheep", IM_COL32(0, 255, 0, 255)},
 		{"wolf", IM_COL32(255, 0, 0, 255)},
+		{"Boar", IM_COL32(255, 0, 0, 255)},
 		{"enemy", IM_COL32(255, 0, 0, 255)},
-		{"man", IM_COL32(0, 0, 255, 255)},
 		{"woman", IM_COL32(0, 0, 255, 255)},
+		{"man", IM_COL32(0, 0, 255, 255)},
 		{"horse", IM_COL32(0, 0, 255, 255)}
 	};
 
@@ -666,7 +674,7 @@ public:
 	// Nutzt die gespeicherten Adressen, um Entities zu aktualisieren
 	void UpdateEntities(Vector3 camPos, float maxDistance) {
 		validEntites = 0;
-
+		entityCache.clear();
 		for (uintptr_t entBase : entityAddresses) {
 			uintptr_t posAddr = FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
 			uintptr_t nameAddr = FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
@@ -730,5 +738,70 @@ private:
 			}
 		}
 		return rawName;
+	}
+};
+class DebugScreenshot {
+public:
+	static void SaveOverlayScreenshot(HWND overlayWindow, const std::wstring& filename) {
+		HDC hdcScreen, hdcMem;
+		HBITMAP hBitmap;
+		RECT overlayRect;
+
+		// Fenstergröße des Overlays abrufen
+		GetWindowRect(overlayWindow, &overlayRect);
+		int width = overlayRect.right - overlayRect.left;
+		int height = overlayRect.bottom - overlayRect.top;
+
+		// Bildschirm-Kontext holen
+		hdcScreen = GetDC(NULL);
+		hdcMem = CreateCompatibleDC(hdcScreen);
+		hBitmap = CreateCompatibleBitmap(hdcScreen, width, height);
+		SelectObject(hdcMem, hBitmap);
+
+		// Screenshot in den Speicher zeichnen
+		BitBlt(hdcMem, 0, 0, width, height, hdcScreen, overlayRect.left, overlayRect.top, SRCCOPY);
+
+		// Screenshot als PNG speichern
+		SaveBitmapAsPNG(hBitmap, filename);
+
+		// Speicher freigeben
+		DeleteObject(hBitmap);
+		DeleteDC(hdcMem);
+		ReleaseDC(NULL, hdcScreen);
+	}
+
+private:
+	static void SaveBitmapAsPNG(HBITMAP hBitmap, const std::wstring& filename) {
+		Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+		ULONG_PTR gdiplusToken;
+		Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+		Gdiplus::Bitmap bitmap(hBitmap, NULL);
+		CLSID pngClsid;
+		GetEncoderClsid(L"image/png", &pngClsid);
+
+		std::wstring fullPath = filename + L".png";
+		bitmap.Save(fullPath.c_str(), &pngClsid, NULL);
+
+	}
+
+	static int GetEncoderClsid(const WCHAR* format, CLSID* pClsid) {
+		UINT num = 0, size = 0;
+		Gdiplus::GetImageEncodersSize(&num, &size);
+		if (size == 0) return -1;
+
+		Gdiplus::ImageCodecInfo* pImageCodecInfo = (Gdiplus::ImageCodecInfo*)(malloc(size));
+		if (pImageCodecInfo == NULL) return -1;
+
+		Gdiplus::GetImageEncoders(num, size, pImageCodecInfo);
+		for (UINT i = 0; i < num; ++i) {
+			if (wcscmp(pImageCodecInfo[i].MimeType, format) == 0) {
+				*pClsid = pImageCodecInfo[i].Clsid;
+				free(pImageCodecInfo);
+				return i;
+			}
+		}
+		free(pImageCodecInfo);
+		return -1;
 	}
 };
