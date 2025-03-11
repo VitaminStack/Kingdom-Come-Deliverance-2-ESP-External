@@ -13,6 +13,10 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <unordered_map>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 extern class InitHax
 {
@@ -29,7 +33,7 @@ public:
 		ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(T), nullptr);
 		return buffer;
 	}
-	std::string ReadStringFromMemory(HANDLE hProcess, uintptr_t address, size_t bufferSize = 256) {
+	static std::string ReadStringFromMemory(HANDLE hProcess, uintptr_t address, size_t bufferSize = 256) {
 		char* buffer = new char[bufferSize];
 		SIZE_T bytesRead = 0;
 
@@ -576,5 +580,155 @@ public:
 
 		// Write updated velocity to memory
 		WriteProcessMemory(hProcess, (LPVOID)velocityAddress, &velocity, sizeof(float), nullptr);
+	}
+};
+struct Entity {
+	uintptr_t baseAddress;
+	uintptr_t posAddress;
+	uintptr_t nameAddress;
+	Vector3 position;
+	std::string name;
+	float distance;
+};
+
+class EntityManager {
+private:
+	HANDLE hProcess;
+	uintptr_t entityListAddress;
+	std::unordered_map<uintptr_t, Entity> entityCache;
+	std::vector<uintptr_t> entityAddresses;
+	std::atomic<bool> stopThread{ false }; // Steuerung für den Adress-Update-Thread
+	std::thread addressThread;
+
+	std::vector<std::pair<std::string, ImU32>> entityFilters = {
+		{"dog", IM_COL32(0, 0, 255, 255)},
+		{"deer", IM_COL32(0, 255, 0, 255)},
+		{"hare", IM_COL32(0, 255, 0, 255)},
+		{"cow", IM_COL32(0, 255, 0, 255)},
+		{"bull", IM_COL32(0, 255, 0, 255)},
+		{"pig", IM_COL32(0, 255, 0, 255)},
+		{"wilddog", IM_COL32(255, 0, 0, 255)},
+		{"sheep", IM_COL32(0, 255, 0, 255)},
+		{"wolf", IM_COL32(255, 0, 0, 255)},
+		{"enemy", IM_COL32(255, 0, 0, 255)},
+		{"man", IM_COL32(0, 0, 255, 255)},
+		{"woman", IM_COL32(0, 0, 255, 255)},
+		{"horse", IM_COL32(0, 0, 255, 255)}
+	};
+
+public:
+
+	int validEntites;
+
+	EntityManager(HANDLE process, uintptr_t baseAddress)
+		: hProcess(process), entityListAddress(baseAddress) {
+		StartAddressUpdater();
+	}
+
+	~EntityManager() {
+		stopThread = true;
+		if (addressThread.joinable()) {
+			addressThread.join(); // Thread sicher beenden
+		}
+	}
+
+	// Starte den separaten Thread für die Adress-Aktualisierung
+	void StartAddressUpdater() {
+		addressThread = std::thread([this]() {
+			while (!stopThread) {
+				UpdateEntityAddresses();
+				std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Update alle 500ms
+			}
+			});
+	}
+
+	// Aktualisiert nur die Adressen der Entities
+	void UpdateEntityAddresses() {
+		const int entityCount = 3000;
+		uintptr_t entListAdr = FindDMAAddy(hProcess, (entityListAddress + 0x052A39D0), { 0x0 });
+
+		std::vector<uintptr_t> updatedAddresses;
+
+		for (int i = 0; i < entityCount; ++i) {
+			uintptr_t pointerAddress = entListAdr + (i * 0x8);
+			uintptr_t entBase = 0x0;
+
+			if (ReadProcessMemory(hProcess, (LPVOID)(pointerAddress), &entBase, sizeof(entBase), nullptr)) {
+				if (!IsBadReadPtr(&entBase, sizeof(uintptr_t))) {
+					updatedAddresses.push_back(entBase);
+				}
+			}
+		}
+
+		entityAddresses = std::move(updatedAddresses); // Adressen-Cache sicher ersetzen
+	}
+
+	// Nutzt die gespeicherten Adressen, um Entities zu aktualisieren
+	void UpdateEntities(Vector3 camPos, float maxDistance) {
+		validEntites = 0;
+
+		for (uintptr_t entBase : entityAddresses) {
+			uintptr_t posAddr = FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
+			uintptr_t nameAddr = FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
+
+			Vector3 pos;
+			ReadProcessMemory(hProcess, (LPVOID)(posAddr), &pos, sizeof(pos), nullptr);
+			float distance = Distance3D(camPos, pos);
+
+			if (distance < maxDistance) {
+				Entity& entity = entityCache[entBase];
+				entity.baseAddress = entBase;
+				entity.posAddress = posAddr;
+				entity.nameAddress = nameAddr;
+				entity.position = pos;
+				entity.distance = distance;
+				validEntites++;
+			}
+		}
+
+		for (auto& [entBase, entity] : entityCache) {
+			entity.name = FilterEntityName(ReadEntityName(entity.nameAddress));
+		}
+	}
+
+	void RenderEntities(ImDrawList* drawList, float screenWidth, float screenHeight, float* matrix) {
+		for (const auto& [entBase, entity] : entityCache) {
+			Vector2 screenPos;
+			if (WorldToScreenFarCry(entity.position, screenPos, matrix, screenWidth, screenHeight)) {
+				if (screenPos.x > 0 && screenPos.x < screenWidth && screenPos.y > 0 && screenPos.y < screenHeight) {
+					ImU32 color = GetEntityColor(entity.name);
+					std::ostringstream oss;
+					oss << entity.name << " " << std::fixed << std::setprecision(2) << entity.distance << "m";
+
+					drawList->AddText(ImVec2(CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, oss.str().c_str());
+				}
+			}
+		}
+	}
+
+private:
+	std::string ReadEntityName(uintptr_t nameAddr) {
+		return InitHax::ReadStringFromMemory(hProcess, nameAddr, 30);
+	}
+
+	ImU32 GetEntityColor(const std::string& name) {
+		for (const auto& [keyword, color] : entityFilters) {
+			if (name.find(keyword) != std::string::npos) {
+				return color;
+			}
+		}
+		return IM_COL32(255, 255, 0, 255);
+	}
+
+	std::string FilterEntityName(const std::string& rawName) {
+		for (const auto& [keyword, _] : entityFilters) {
+			std::string capitalizedKeyword = keyword;
+			capitalizedKeyword[0] = std::toupper(capitalizedKeyword[0]);
+
+			if (rawName.find(keyword) != std::string::npos || rawName.find(capitalizedKeyword) != std::string::npos) {
+				return keyword;
+			}
+		}
+		return rawName;
 	}
 };
