@@ -12,7 +12,7 @@
 #include <tchar.h>  
 #include <iostream>
 #include <cmath>
-#include <chrono>
+#include <algorithm>
 
 extern class InitHax
 {
@@ -540,53 +540,41 @@ public:
 
 	bool IsPatched() { return isPatched; }
 };
+
 class FlyHack {
 private:
 	HANDLE hProcess;
 	uintptr_t velocityAddress;
 	float velocity = 0.0f;
-	const float maxVelocity = 15.0f;  // Maximale Geschwindigkeit (niedriger für smooth Movement)
-	const float acceleration = 10.0f; // Beschleunigung pro Sekunde (kleiner für langsame Steigerung)
-	const float deceleration = 1.0f; // Verlangsamung pro Sekunde
+	const float maxVelocity = 50.0f;  // Maximum speed for Z-Velocity
+	const float acceleration = 10.0f; // Acceleration factor
+	const float lerpSpeed = 0.1f;     // Lerp speed (higher = faster transitions)
 
-	std::chrono::steady_clock::time_point lastUpdate; // Zeitstempel für Delta Time
+	// Lerp function for smooth velocity transition
+	float Lerp(float a, float b, float t) {
+		return a + (b - a) * std::clamp(t, 0.0f, 1.0f);
+	}
 
 public:
 	FlyHack(HANDLE process, uintptr_t baseAddress)
 		: hProcess(process) {
+		// Find the velocity memory address using pointer path
 		velocityAddress = FindDMAAddy(process, baseAddress + 0x053F84E0, { 0x0, 0x300, 0x38, 0xC0, 0xC4 });
-		lastUpdate = std::chrono::steady_clock::now();
 	}
 
 	void Update() {
-		// Delta Time berechnen
-		auto now = std::chrono::steady_clock::now();
-		float deltaTime = std::chrono::duration<float>(now - lastUpdate).count();
-		lastUpdate = now;
+		float targetVelocity = 0.0f;  // Default velocity (no input = no movement)
 
 		if (GetAsyncKeyState(VK_SPACE) & 0x8000) {
-			// Erhöhe Geschwindigkeit mit Delta Time
-			velocity += acceleration;
-			if (velocity > maxVelocity) velocity = maxVelocity;
+			targetVelocity = maxVelocity; // Move upwards
 		}
 		else if (GetAsyncKeyState(VK_CONTROL) & 0x8000) {
-			// Verringere Geschwindigkeit (sinkt nach unten)
-			velocity -= acceleration;
-			if (velocity < -maxVelocity) velocity = -maxVelocity;  // Negativer Max-Speed für Sinken
+			targetVelocity = -maxVelocity; // Move downwards
 		}
-		else {
-			// Verlangsamt Geschwindigkeit sanft mit Delta Time
-			if (velocity > 0.0f) {
-				velocity -= deceleration;
-				if (velocity < 0.0f) velocity = 0.0f;  // Stoppt, wenn nahe 0
-			}
-			else if (velocity < 0.0f) {
-				velocity += deceleration;
-				if (velocity > 0.0f) velocity = 0.0f;  // Stoppt, wenn nahe 0
-			}
-		}
+		// Smoothly adjust velocity using Lerp
+		velocity = Lerp(velocity, targetVelocity, lerpSpeed);
 
-		// Schreibe die aktuelle Geschwindigkeit ins Spiel
+		// Write updated velocity to memory
 		WriteProcessMemory(hProcess, (LPVOID)velocityAddress, &velocity, sizeof(float), nullptr);
 	}
 };
