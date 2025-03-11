@@ -26,7 +26,7 @@ uintptr_t ModuleBaseAdresse = 0x0;
 const wchar_t* ModuleName = L"WHGame.DLL";
 uintptr_t CamPosAdr = 0x5209DA8;
 uintptr_t CutsceneActive = 0x528C8D8;
-static float maxDistance = 100.0f;
+static float maxDistance = 200.0f;
 bool flyhack = false;
 
 Vector3 CamPos = { 0.0f, 0.0f,0.0f };
@@ -43,6 +43,7 @@ bool Clickability = false;
 bool demoWindow = false;
 bool checkAdress = false;
 bool useCutsceneCheck = true;
+bool esp = true;
 
 struct Ent {
     Vector3 Pos;
@@ -193,6 +194,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ImGui::ColorEdit4("color", (float*)&clear_color);
 
         // Slider für maximale Distance
+		ImGui::Checkbox("ESP", &esp);
         ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 5000.f);
 		ImGui::Checkbox("Use Cutscene Check", &useCutsceneCheck);
         if (ImGui::Checkbox("Flyhack", &flyhack))
@@ -213,7 +215,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ImGui::PopFont();
 		
         
-        MyArialFont->Scale = 1.0f;
+        MyArialFont->Scale = 0.8f;
         ImGui::PushFont(MyArialFont);
         
         
@@ -225,7 +227,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             FlyHack flyhack(Hax.hProcess, ModuleBaseAdresse);
             flyhack.Update();
         }
-        if (Hax.ProcID)
+        if (Hax.ProcID && esp)
         {
 			CamPos = Hax.Read<Vector3>(CamPosAdr + ModuleBaseAdresse);
 			bool Cutscene = Hax.Read<bool>(CutsceneActive + ModuleBaseAdresse);
@@ -391,6 +393,22 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                                     {
                                         std::ostringstream oss;
                                         oss << "Wolf " << std::fixed << std::setprecision(2) << Distance << "m";
+                                        std::string Text = oss.str();
+
+                                        if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
+                                        {
+                                            if (ScreenPos.x < 2560 && ScreenPos.x > 0 && ScreenPos.y < 1440 && ScreenPos.y > 0)
+                                            {
+                                                Drawlist->AddText(ImVec2(CalcMiddlePos(ScreenPos.x, Text.c_str()), ScreenPos.y), IM_COL32(255, 0, 0, 255), Text.c_str());
+                                                continue;
+                                            }
+
+                                        }
+                                    }
+                                    if (EntName.find("Enemy") != std::string::npos)
+                                    {
+                                        std::ostringstream oss;
+                                        oss << "Enemy " << std::fixed << std::setprecision(2) << Distance << "m";
                                         std::string Text = oss.str();
 
                                         if (WorldToScreenFarCry(entityArray[i].Pos, ScreenPos, Matrix, Screen.x, Screen.y))
