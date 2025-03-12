@@ -17,6 +17,8 @@
 #include <algorithm>
 #include <mutex>
 #include <emmintrin.h> // Für _mm_pause()
+#include "imgui/imgui.h"
+#include <tchar.h>
 
 #pragma comment(lib, "gdiplus.lib")
 
@@ -121,7 +123,10 @@ public:
 		return os;
 	}
 };
-
+struct Vector4
+{
+	float x, y, z, w;
+};
 
 
 class FPSLimiter {
@@ -756,8 +761,73 @@ private:
 		return -1;
 	}
 };
+class DebugConsole {
+public:
+	enum class LogLevel {
+		Log_ERROR,
+		Log_WARNING,
+		Log_INFO
+	};
 
+	static void setDebugging(bool enable) {
 
+		debuggingEnabled = enable;
+		if (enable) {
+			openConsole();
+		}
+		else {
+			closeConsole();
+		}
+	}
+
+	static void log(LogLevel level, const std::string& message) {
+		if (!debuggingEnabled) return;
+
+		std::lock_guard<std::mutex> lock(logMutex);
+		std::string prefix = getLogLevelString(level);
+		std::cout << getCurrentTime() << " " << prefix << ": " << message << std::endl;
+	}
+
+private:
+	static bool debuggingEnabled;
+	static std::mutex logMutex;
+
+	static void openConsole() {
+		if (AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole()) {
+			FILE* fp;
+			freopen_s(&fp, "CONOUT$", "w", stdout);
+			freopen_s(&fp, "CONOUT$", "w", stderr);
+			freopen_s(&fp, "CONIN$", "r", stdin);
+			std::cout << "[DEBUG CONSOLE OPENED]" << std::endl;
+		}
+		else {
+			MessageBoxA(NULL, "Failed to open console!", "Error", MB_OK | MB_ICONERROR);
+		}
+	}
+
+	static void closeConsole() {
+		std::cout << "[DEBUG CONSOLE CLOSED]" << std::endl;
+		FreeConsole();
+	}
+
+	static std::string getLogLevelString(LogLevel level) {
+		switch (level) {
+		case LogLevel::Log_ERROR: return "[ERROR]";
+		case LogLevel::Log_WARNING: return "[WARNING]";
+		case LogLevel::Log_INFO: return "[INFO]";
+		}
+		return "[UNKNOWN]";
+	}
+
+	static std::string getCurrentTime() {
+		std::time_t now = std::time(nullptr);
+		struct tm timeInfo;
+		char buf[20];
+		localtime_s(&timeInfo, &now);
+		std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &timeInfo);
+		return std::string(buf);
+	}
+};
 
 
 
