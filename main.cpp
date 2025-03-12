@@ -132,7 +132,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     Hax.hProcess = Hax.GetAndLoadHax(L"Kingdom Come: Deliverance II");
     DWORD size;
     int validEnts = 0;
-	ModuleBaseAdresse = GetModuleBaseAddressEx(ModuleName, Hax.ProcID, size);
+	ModuleBaseAdresse = MemoryManager::GetModuleBaseAddressEx(ModuleName, Hax.ProcID, size);
     ExBytePatcher patcher(Hax.hProcess, ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
     EntityManager entityManager(Hax.hProcess, ModuleBaseAdresse);
 
@@ -233,7 +233,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         if (Hax.ProcID && esp) {
             CamPos = Hax.Read<Vector3>(CamPosAdr + ModuleBaseAdresse);
             bool cutscene = Hax.Read<bool>(CutsceneActive + ModuleBaseAdresse);
-            MatrixAdr = FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x0526C9A0), { 0x50,0x120,0xB0,0x4C8 });
+            MatrixAdr = MemoryManager::FindDMAAddy(Hax.hProcess, (ModuleBaseAdresse + 0x0526C9A0), { 0x50,0x120,0xB0,0x4C8 });
             ReadProcessMemory(Hax.hProcess, (LPVOID)MatrixAdr, &Matrix, sizeof(Matrix), NULL);
 
             if (!cutscene || !useCutsceneCheck) {

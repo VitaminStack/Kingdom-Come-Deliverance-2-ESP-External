@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <windows.h>
 #include <vector>
@@ -22,105 +22,6 @@
 
 
 #pragma comment(lib, "gdiplus.lib")
-
-
-extern class InitHax
-{
-public:
-	DWORD ProcID;
-	HANDLE hProcess;
-	HWND TargetHWND;
-	LPCWSTR TargetGame;
-	const wchar_t* ModuleBaseName;
-
-	template <typename T>
-	T Read(uintptr_t address) {
-		T buffer;
-		ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(T), nullptr);
-		return buffer;
-	}
-	static std::string ReadStringFromMemory(HANDLE hProcess, uintptr_t address, size_t bufferSize = 256) {
-		char* buffer = new char[bufferSize];
-		SIZE_T bytesRead = 0;
-
-		// Lese den Speicher des Zielprozesses
-		if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), buffer, bufferSize - 1, &bytesRead)) {
-			buffer[bytesRead] = '\0'; // Sicherstellen, dass der String nullterminiert ist
-			std::string result(buffer);
-			delete[] buffer;
-			return result;
-		}
-
-		delete[] buffer;
-		return ""; // R�ckgabe eines leeren Strings bei Fehler
-	}
-	HWND FindWindowByProcessId(DWORD processId)
-	{
-		HWND hwnd = GetTopWindow(NULL);
-		while (hwnd != NULL)
-		{
-			DWORD windowProcessId;
-			GetWindowThreadProcessId(hwnd, &windowProcessId);
-
-			if (windowProcessId == processId)
-			{
-				return hwnd; // Fenster gefunden
-			}
-
-			hwnd = GetNextWindow(hwnd, GW_HWNDNEXT);
-		}
-
-		return NULL; // Kein passendes Fenster gefunden
-	}
-
-	DWORD FindProcessId(const _TCHAR* processName)
-	{
-		PROCESSENTRY32 processInfo;
-		processInfo.dwSize = sizeof(processInfo);
-
-		HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-		if (snapshot == INVALID_HANDLE_VALUE)
-			return 0;
-
-		Process32First(snapshot, &processInfo);
-		if (!_tcscmp(processInfo.szExeFile, processName))
-		{
-			CloseHandle(snapshot);
-			return processInfo.th32ProcessID;
-		}
-
-		while (Process32Next(snapshot, &processInfo))
-		{
-			if (!_tcscmp(processInfo.szExeFile, processName))
-			{
-				CloseHandle(snapshot);
-				return processInfo.th32ProcessID;
-			}
-		}
-
-		CloseHandle(snapshot);
-		return 0;
-	}
-
-	HANDLE GetAndLoadHax(LPCWSTR TargetGame)
-	{
-		TargetHWND = FindWindow(0, TargetGame);
-		GetWindowThreadProcessId(TargetHWND, &ProcID);
-
-		//ProcID = FindProcessId(TargetGame);        
-		//TargetHWND = FindWindowByProcessId(ProcID);
-
-		hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcID);
-		if (hProcess == NULL)
-		{
-			DWORD error = GetLastError();
-			std::cerr << "OpenProcess failed. Error code: " << error << std::endl;
-		}
-		return hProcess;
-	}
-};
-
-
 struct Vector2
 {
 	float x, y;
@@ -334,178 +235,193 @@ public:
 public:
 	float x, y, z;
 };
-uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, std::vector<unsigned int> offsets);
-uintptr_t ScanAOB(std::vector<int> signature, const wchar_t* ModBaseName, HANDLE hProcess, DWORD ProcID);
-D3DXMATRIX ToMatrix(Vector3 Rotation);
 
-
-float Distance3D(const Vector3& point1, const Vector3& point2) {
-	return point1.DistTo(point2);
-}
-uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, std::vector<unsigned int> offsets)
-{
-	uintptr_t addr = ptr;
-	for (unsigned int i = 0; i < offsets.size(); ++i)
-	{
-		ReadProcessMemory(hProc, (BYTE*)addr, &addr, sizeof(addr), 0);
-		addr += offsets[i];
+class RenderHelper {
+public:
+	// Berechnet die 3D-Distanz zwischen zwei Punkten
+	static float Distance3D(const Vector3& point1, const Vector3& point2) {
+		return point1.DistTo(point2);
 	}
-	return addr;
-}
-void ReadMemory(const void* address, void* buffer, size_t size)
-{
-	DWORD back = NULL;
 
-	if (VirtualProtect((LPVOID)address, size, PAGE_READWRITE, &back))
-	{
-		memcpy(buffer, address, size);
+	// Wandelt Weltkoordinaten in Bildschirmkoordinaten um (Far Cry)
+	static bool W2SCryEngine(Vector3 pos, Vector2& screen, float matrix[16], int windowWidth, int windowHeight) {
+		D3DXVECTOR4 clipCoords;
+		clipCoords.x = pos.x * matrix[0] + pos.y * matrix[4] + pos.z * matrix[8] + matrix[12];
+		clipCoords.y = pos.x * matrix[1] + pos.y * matrix[5] + pos.z * matrix[9] + matrix[13];
+		clipCoords.z = pos.x * matrix[2] + pos.y * matrix[6] + pos.z * matrix[10] + matrix[14];
+		clipCoords.w = pos.x * matrix[3] + pos.y * matrix[7] + pos.z * matrix[11] + matrix[15];
 
-		VirtualProtect((LPVOID)address, size, back, &back);
+		if (clipCoords.w < 0.1f) return false;
+
+		Vector3 NDC;
+		NDC.x = clipCoords.x / clipCoords.w;
+		NDC.y = clipCoords.y / clipCoords.w;
+		NDC.z = clipCoords.z / clipCoords.w;
+
+		screen.x = (windowWidth / 2 * NDC.x) + (NDC.x + windowWidth / 2);
+		screen.y = -(windowHeight / 2 * NDC.y) + (NDC.y + windowHeight / 2);
+		return true;
 	}
-}
-bool WorldToScreenFarCry(Vector3 pos, Vector2& screen, float matrix[16], int windowWidth, int windowHeight)
+
+	// Erstellt eine Matrix basierend auf Rotation
+	static D3DXMATRIX ToMatrix(Vector3 Rotation) {
+		float radPitch = (Rotation.x * float(3.1415926535897932f) / 180.f);
+		float radYaw = (Rotation.y * float(3.1415926535897932f) / 180.f);
+		float radRoll = (Rotation.z * float(3.1415926535897932f) / 180.f);
+
+		float SP = sinf(radPitch);
+		float CP = cosf(radPitch);
+		float SY = sinf(radYaw);
+		float CY = cosf(radYaw);
+		float SR = sinf(radRoll);
+		float CR = cosf(radRoll);
+
+		D3DMATRIX matrix;
+		matrix.m[0][0] = CP * CY;
+		matrix.m[0][1] = CP * SY;
+		matrix.m[0][2] = SP;
+		matrix.m[0][3] = 0.f;
+
+		matrix.m[1][0] = SR * SP * CY - CR * SY;
+		matrix.m[1][1] = SR * SP * SY + CR * CY;
+		matrix.m[1][2] = -SR * CP;
+		matrix.m[1][3] = 0.f;
+
+		matrix.m[2][0] = -(CR * SP * CY + SR * SY);
+		matrix.m[2][1] = CY * SR - CR * SP * SY;
+		matrix.m[2][2] = CR * CP;
+		matrix.m[2][3] = 0.f;
+
+		matrix.m[3][0] = 0.f;
+		matrix.m[3][1] = 0.f;
+		matrix.m[3][2] = 0.f;
+		matrix.m[3][3] = 1.f;
+
+		return matrix;
+	}
+
+	// Berechnet die mittlere Position für die Textdarstellung
+	static float CalcMiddlePos(float vScreenX, const char* Text) {
+		return vScreenX - ((strlen(Text) / 2) * 5);
+	}
+
+	// Debug-Funktion zum Zeichnen von Bone-Strukturen (Skelett-Rendering)
+	static void DebugBones(HANDLE hProcess, ImDrawList* drawList, float viewMatrix[16], uintptr_t boneArray, int boneCount, ImU32 color = IM_COL32(255, 0, 0, 255)) {
+		if (!boneArray || boneCount <= 0) return;
+
+		for (int i = 0; i < boneCount; ++i) {
+			Vector3 bonePos = { 0, 0, 0 };
+
+			if (!ReadProcessMemory(hProcess, (LPVOID)(boneArray + 0x8 + (i * 0x38)), &bonePos, sizeof(Vector3), nullptr)) {
+				continue;
+			}
+
+			Vector2 screenPos;
+			if (RenderHelper::W2SCryEngine(bonePos, screenPos, viewMatrix, 2560, 1440)) {
+				if (screenPos.x > 0 && screenPos.x < 2560 && screenPos.y > 0 && screenPos.y < 1440) {
+					drawList->AddCircleFilled(ImVec2(screenPos.x, screenPos.y), 3.0f, color);
+				}
+			}
+		}
+	}
+};
+
+
+extern class InitHax
 {
-	//Matrix-vector Product, multiplying world(eye) coordinates by projection matrix = clipCoords
-	D3DXVECTOR4 clipCoords;
-	clipCoords.x = pos.x * matrix[0] + pos.y * matrix[4] + pos.z * matrix[8] + matrix[12];
-	clipCoords.y = pos.x * matrix[1] + pos.y * matrix[5] + pos.z * matrix[9] + matrix[13];
-	clipCoords.z = pos.x * matrix[2] + pos.y * matrix[6] + pos.z * matrix[10] + matrix[14];
-	clipCoords.w = pos.x * matrix[3] + pos.y * matrix[7] + pos.z * matrix[11] + matrix[15];
+public:
+	DWORD ProcID;
+	HANDLE hProcess;
+	HWND TargetHWND;
+	LPCWSTR TargetGame;
+	const wchar_t* ModuleBaseName;
 
-	if (clipCoords.w < 0.1f)
-		return false;
+	template <typename T>
+	T Read(uintptr_t address) {
+		T buffer;
+		ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(T), nullptr);
+		return buffer;
+	}
+	static std::string ReadStringFromMemory(HANDLE hProcess, uintptr_t address, size_t bufferSize = 256) {
+		char* buffer = new char[bufferSize];
+		SIZE_T bytesRead = 0;
 
-	//perspective division, dividing by clip.W = Normalized Device Coordinates
-	Vector3 NDC;
-	NDC.x = clipCoords.x / clipCoords.w;
-	NDC.y = clipCoords.y / clipCoords.w;
-	NDC.z = clipCoords.z / clipCoords.w;
+		// Lese den Speicher des Zielprozesses
+		if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), buffer, bufferSize - 1, &bytesRead)) {
+			buffer[bytesRead] = '\0'; // Sicherstellen, dass der String nullterminiert ist
+			std::string result(buffer);
+			delete[] buffer;
+			return result;
+		}
 
-	screen.x = (windowWidth / 2 * NDC.x) + (NDC.x + windowWidth / 2);
-	screen.y = -(windowHeight / 2 * NDC.y) + (NDC.y + windowHeight / 2);
-	return true;
-}
-D3DXMATRIX ToMatrix(Vector3 Rotation)
-{
-	Vector3 origin;
-	origin.x = 0.f;
-	origin.y = 0.f;
-	origin.z = 0.f;
-	float radPitch = (Rotation.x * float(3.1415926535897932f) / 180.f);
-	float radYaw = (Rotation.y * float(3.1415926535897932f) / 180.f);
-	float radRoll = (Rotation.z * float(3.1415926535897932f) / 180.f);
-
-	float SP = sinf(radPitch);
-	float CP = cosf(radPitch);
-	float SY = sinf(radYaw);
-	float CY = cosf(radYaw);
-	float SR = sinf(radRoll);
-	float CR = cosf(radRoll);
-
-	D3DMATRIX matrix;
-	matrix.m[0][0] = CP * CY;
-	matrix.m[0][1] = CP * SY;
-	matrix.m[0][2] = SP;
-	matrix.m[0][3] = 0.f;
-
-	matrix.m[1][0] = SR * SP * CY - CR * SY;
-	matrix.m[1][1] = SR * SP * SY + CR * CY;
-	matrix.m[1][2] = -SR * CP;
-	matrix.m[1][3] = 0.f;
-
-	matrix.m[2][0] = -(CR * SP * CY + SR * SY);
-	matrix.m[2][1] = CY * SR - CR * SP * SY;
-	matrix.m[2][2] = CR * CP;
-	matrix.m[2][3] = 0.f;
-
-	matrix.m[3][0] = origin.x;
-	matrix.m[3][1] = origin.y;
-	matrix.m[3][2] = origin.z;
-	matrix.m[3][3] = 1.f;
-
-	return matrix;
-
-}
-float CalcMiddlePos(float vScreenX, const char* Text)
-{
-	float itextX = vScreenX - ((strlen(Text) / 2) * 5);
-	return itextX;
-}
-
-
-
-uintptr_t GetModuleBaseAddressEx(const wchar_t* lpszModuleName, DWORD pID, DWORD &pSize) {
-	uintptr_t dwModuleBaseAddress = 0;
-	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pID);
-	MODULEENTRY32 ModuleEntry32 = { 0 };
-	ModuleEntry32.dwSize = sizeof(MODULEENTRY32);
-
-	if (Module32First(hSnapshot, &ModuleEntry32))
+		delete[] buffer;
+		return ""; // Rückgabe eines leeren Strings bei Fehler
+	}
+	HWND FindWindowByProcessId(DWORD processId)
 	{
-		do {
-			if (wcscmp(ModuleEntry32.szModule, lpszModuleName) == 0)
+		HWND hwnd = GetTopWindow(NULL);
+		while (hwnd != NULL)
+		{
+			DWORD windowProcessId;
+			GetWindowThreadProcessId(hwnd, &windowProcessId);
+
+			if (windowProcessId == processId)
 			{
-				dwModuleBaseAddress = (uintptr_t)ModuleEntry32.modBaseAddr;
-				pSize = ModuleEntry32.modBaseSize;
-				break;
+				return hwnd; // Fenster gefunden
 			}
-		} while (Module32Next(hSnapshot, &ModuleEntry32));
 
+			hwnd = GetNextWindow(hwnd, GW_HWNDNEXT);
+		}
 
+		return NULL; // Kein passendes Fenster gefunden
 	}
-	CloseHandle(hSnapshot);
-	return dwModuleBaseAddress;
-}
-uintptr_t GetDynamicAddressEx(HANDLE hProcess, uintptr_t baseAddress, std::vector<DWORD> offsets) {
-	uintptr_t dynamicAddress = baseAddress;
-	for (int i = 0; i < offsets.size() - 1; i++)
+
+	DWORD FindProcessId(const _TCHAR* processName)
 	{
-		ReadProcessMemory(hProcess, (LPCVOID)(dynamicAddress + offsets[i]), &dynamicAddress, sizeof(offsets.at(i)), NULL);
-		//std::cout << "Current Adress: " << std::hex << healthAddress << std::endl;
-	}
-	dynamicAddress += offsets[offsets.size() - 1];
-	return dynamicAddress;
-}
-uintptr_t GetAddressFromSignatureEx(std::vector<int> signature, HANDLE hProcess, uintptr_t pBaseAddress, DWORD pSize) {
-	if (pBaseAddress == NULL || hProcess == NULL) {
-		return NULL;
-	}
-	std::vector<byte> memBuffer(pSize);
-	if (!ReadProcessMemory(hProcess, (LPCVOID)(pBaseAddress), memBuffer.data(), pSize, NULL)) {
-		return NULL;
-	}
-	for (int i = 0; i < pSize; i++) {
-		for (uintptr_t j = 0; j < signature.size(); j++) {
-			if (signature.at(j) != -1 && signature[j] != memBuffer[i + j])
-				//std::cout << std::hex << signature.at(j) << std::hex << memBuffer[i + j] << std::endl;
-				break;
-			if (signature[j] == memBuffer[i + j] && j > 0)
-				
-			if (j + 1 == signature.size())
-				return pBaseAddress + i;
-		}
-	}
-	return NULL;
-}
+		PROCESSENTRY32 processInfo;
+		processInfo.dwSize = sizeof(processInfo);
 
-void DebugBones(HANDLE hProcess, ImDrawList* drawList, float viewMatrix[16], uintptr_t boneArray, int boneCount ,ImU32 color = IM_COL32(255, 0, 0, 255)) {
-	if (!boneArray || boneCount <= 0) return;
+		HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+		if (snapshot == INVALID_HANDLE_VALUE)
+			return 0;
 
-	for (int i = 0; i < boneCount; ++i) {
-		Vector3 bonePos = { 0, 0, 0 };
-
-		if (!ReadProcessMemory(hProcess, (LPVOID)(boneArray + 0x8 + (i * 0x38)), &bonePos, sizeof(Vector3), nullptr)) {
-			continue;
+		Process32First(snapshot, &processInfo);
+		if (!_tcscmp(processInfo.szExeFile, processName))
+		{
+			CloseHandle(snapshot);
+			return processInfo.th32ProcessID;
 		}
 
-		Vector2 screenPos;
-		if (WorldToScreenFarCry(bonePos, screenPos, viewMatrix, 2560, 1440)) {
-			if (screenPos.x > 0 && screenPos.x < 2560 && screenPos.y > 0 && screenPos.y < 1440) {
-				drawList->AddCircleFilled(ImVec2(screenPos.x, screenPos.y), 3.0f, color);
+		while (Process32Next(snapshot, &processInfo))
+		{
+			if (!_tcscmp(processInfo.szExeFile, processName))
+			{
+				CloseHandle(snapshot);
+				return processInfo.th32ProcessID;
 			}
 		}
+
+		CloseHandle(snapshot);
+		return 0;
 	}
-}
+
+	HANDLE GetAndLoadHax(LPCWSTR TargetGame)
+	{
+		TargetHWND = FindWindow(0, TargetGame);
+		GetWindowThreadProcessId(TargetHWND, &ProcID);
+
+		//ProcID = FindProcessId(TargetGame);        
+		//TargetHWND = FindWindowByProcessId(ProcID);
+
+		hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, ProcID);
+		if (hProcess == NULL)
+		{
+			DWORD error = GetLastError();
+			std::cerr << "OpenProcess failed. Error code: " << error << std::endl;
+		}
+		return hProcess;
+	}
+};
 
 
 class ExBytePatcher {
@@ -550,7 +466,124 @@ public:
 
 	bool IsPatched() { return isPatched; }
 };
+class MemoryManager {
+private:
+	HANDLE hProcess;
 
+public:
+	MemoryManager(HANDLE process) : hProcess(process) {}
+
+	// ✅ Statische Methode: FindDMAAddy kann direkt ohne Instanz genutzt werden
+	static uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, const std::vector<unsigned int>& offsets) {
+		uintptr_t addr = ptr;
+		for (unsigned int i = 0; i < offsets.size(); ++i) {
+			ReadProcessMemory(hProc, (BYTE*)addr, &addr, sizeof(addr), 0);
+			addr += offsets[i];
+		}
+		return addr;
+	}
+
+	// ✅ Speicher auslesen
+	void ReadMemory(const void* address, void* buffer, size_t size) {
+		DWORD oldProtect;
+		if (VirtualProtect((LPVOID)address, size, PAGE_READWRITE, &oldProtect)) {
+			memcpy(buffer, address, size);
+			VirtualProtect((LPVOID)address, size, oldProtect, &oldProtect);
+		}
+	}
+
+	// ✅ Modulbasisadresse & Größe holen
+	static uintptr_t GetModuleBaseAddressEx(const wchar_t* moduleName, DWORD pID, DWORD& moduleSize) {
+		uintptr_t baseAddress = 0;
+		HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, pID);
+		MODULEENTRY32 moduleEntry = { sizeof(MODULEENTRY32) };
+
+		if (Module32First(hSnapshot, &moduleEntry)) {
+			do {
+				if (wcscmp(moduleEntry.szModule, moduleName) == 0) {
+					baseAddress = (uintptr_t)moduleEntry.modBaseAddr;
+					moduleSize = moduleEntry.modBaseSize;
+					break;
+				}
+			} while (Module32Next(hSnapshot, &moduleEntry));
+		}
+		CloseHandle(hSnapshot);
+		return baseAddress;
+	}
+
+	// ✅ Dynamische Adresse auslesen mit Offsets
+	uintptr_t GetDynamicAddressEx(uintptr_t baseAddress, std::vector<DWORD> offsets) {
+		uintptr_t dynamicAddress = baseAddress;
+		for (size_t i = 0; i < offsets.size() - 1; i++) {
+			ReadProcessMemory(hProcess, (LPCVOID)(dynamicAddress + offsets[i]), &dynamicAddress, sizeof(offsets[i]), NULL);
+		}
+		dynamicAddress += offsets[offsets.size() - 1];
+		return dynamicAddress;
+	}
+
+	// ✅ Pattern-Scanning (AOB Scan)
+	uintptr_t GetAddressFromSignatureEx(std::vector<int> signature, uintptr_t baseAddress, DWORD size) {
+		if (!baseAddress || !hProcess) return NULL;
+
+		std::vector<byte> buffer(size);
+		if (!ReadProcessMemory(hProcess, (LPCVOID)(baseAddress), buffer.data(), size, NULL)) {
+			return NULL;
+		}
+
+		for (size_t i = 0; i < size; i++) {
+			bool found = true;
+			for (size_t j = 0; j < signature.size(); j++) {
+				if (signature[j] != -1 && signature[j] != buffer[i + j]) {
+					found = false;
+					break;
+				}
+			}
+			if (found) return baseAddress + i;
+		}
+		return NULL;
+	}
+
+	// ✅ Signature Scan (AOB Scan über Modul)
+	uintptr_t ScanAOB(std::vector<int> signature, const wchar_t* moduleName, DWORD procID) {
+		DWORD moduleSize;
+		uintptr_t moduleBase = GetModuleBaseAddressEx(moduleName, procID, moduleSize);
+		return GetAddressFromSignatureEx(signature, moduleBase, moduleSize);
+	}
+
+	// ✅ Detouring einer Funktion in eine CodeCave
+	void DetourEx(LPVOID targetFunction, LPVOID codecaveAddress) {
+		SIZE_T bytesWritten;
+		BYTE clearByte[] = { 0x90 };
+
+		// CodeCave leeren
+		for (int i = 0; i < 100; i++) {
+			WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + i), &clearByte, sizeof(clearByte), NULL);
+		}
+
+		// Sprung zur CodeCave
+		BYTE jmpBytes[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+		WriteProcessMemory(hProcess, targetFunction, jmpBytes, sizeof(jmpBytes), NULL);
+		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)targetFunction + 6), &codecaveAddress, sizeof(codecaveAddress), NULL);
+
+		// Ursprüngliche Funktion in CodeCave wiederherstellen
+		BYTE originalBytes[] = {
+			0x48, 0x8B, 0x89, 0xB0, 0x00, 0x00, 0x00, 0x0F, 0x28, 0xF3, 0x49, 0x8B, 0xD8, 0x48, 0x85, 0xC9
+		};
+		WriteProcessMemory(hProcess, codecaveAddress, originalBytes, sizeof(originalBytes), &bytesWritten);
+
+		// Rücksprung zu alter Adresse
+		BYTE backJmpBytes[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+		uintptr_t backOffset = (uintptr_t)((uintptr_t)targetFunction + 0x10);
+		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + 30), backJmpBytes, sizeof(backJmpBytes), NULL);
+		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + 36), &backOffset, sizeof(backOffset), NULL);
+	}
+
+	// ✅ Funktion mit NOP überschreiben
+	void NopFunc(LPVOID targetFunction, int bytes) {
+		std::vector<BYTE> nopBytes(bytes, 0x90);
+		WriteProcessMemory(hProcess, targetFunction, nopBytes.data(), bytes, NULL);
+	}
+};
 class FlyHack {
 private:
 	HANDLE hProcess;
@@ -569,7 +602,7 @@ public:
 	FlyHack(HANDLE process, uintptr_t baseAddress)
 		: hProcess(process) {
 		// Find the velocity memory address using pointer path
-		velocityAddress = FindDMAAddy(process, baseAddress + 0x053F84E0, { 0x0, 0x300, 0x38, 0xC0, 0xC4 });
+		velocityAddress = MemoryManager::FindDMAAddy(process, baseAddress + 0x053F84E0, { 0x0, 0x300, 0x38, 0xC0, 0xC4 });
 	}
 
 	void Update() {
@@ -589,22 +622,21 @@ public:
 	}
 };
 
-struct Entity {
-	uintptr_t baseAddress;
-	uintptr_t posAddress;
-	uintptr_t nameAddress;
-	Vector3 position;
-	std::string name;
-	float distance;
-};
-
 class EntityManager {
 private:
+	struct Entity {
+		uintptr_t baseAddress;
+		uintptr_t posAddress;
+		uintptr_t nameAddress;
+		Vector3 position;
+		std::string name;
+		float distance;
+	};
 	HANDLE hProcess;
 	uintptr_t entityListAddress;
 	std::unordered_map<uintptr_t, Entity> entityCache;
 	std::vector<uintptr_t> entityAddresses;
-	std::atomic<bool> stopThread{ false }; // Steuerung f�r den Adress-Update-Thread
+	std::atomic<bool> stopThread{ false }; // Steuerung für den Adress-Update-Thread
 	std::thread addressThread;
 
 	std::vector<std::pair<std::string, ImU32>> entityFilters = {
@@ -640,7 +672,7 @@ public:
 		}
 	}
 
-	// Starte den separaten Thread f�r die Adress-Aktualisierung
+	// Starte den separaten Thread für die Adress-Aktualisierung
 	void StartAddressUpdater() {
 		addressThread = std::thread([this]() {
 			while (!stopThread) {
@@ -653,7 +685,7 @@ public:
 	// Aktualisiert nur die Adressen der Entities
 	void UpdateEntityAddresses() {
 		const int entityCount = 3000;
-		uintptr_t entListAdr = FindDMAAddy(hProcess, (entityListAddress + 0x052A39D0), { 0x0 });
+		uintptr_t entListAdr = MemoryManager::FindDMAAddy(hProcess, (entityListAddress + 0x052A39D0), { 0x0 });
 
 		std::vector<uintptr_t> updatedAddresses;
 
@@ -676,12 +708,12 @@ public:
 		validEntites = 0;
 		entityCache.clear();
 		for (uintptr_t entBase : entityAddresses) {
-			uintptr_t posAddr = FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
-			uintptr_t nameAddr = FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
+			uintptr_t posAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
+			uintptr_t nameAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
 
 			Vector3 pos;
 			ReadProcessMemory(hProcess, (LPVOID)(posAddr), &pos, sizeof(pos), nullptr);
-			float distance = Distance3D(camPos, pos);
+			float distance = RenderHelper::Distance3D(camPos, pos);
 
 			if (distance < maxDistance) {
 				Entity& entity = entityCache[entBase];
@@ -702,13 +734,13 @@ public:
 	void RenderEntities(ImDrawList* drawList, float screenWidth, float screenHeight, float* matrix) {
 		for (const auto& [entBase, entity] : entityCache) {
 			Vector2 screenPos;
-			if (WorldToScreenFarCry(entity.position, screenPos, matrix, screenWidth, screenHeight)) {
+			if (RenderHelper::W2SCryEngine(entity.position, screenPos, matrix, screenWidth, screenHeight)) {
 				if (screenPos.x > 0 && screenPos.x < screenWidth && screenPos.y > 0 && screenPos.y < screenHeight) {
 					ImU32 color = GetEntityColor(entity.name);
 					std::ostringstream oss;
 					oss << entity.name << " " << std::fixed << std::setprecision(2) << entity.distance << "m";
 
-					drawList->AddText(ImVec2(CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, oss.str().c_str());
+					drawList->AddText(ImVec2(RenderHelper::CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, oss.str().c_str());
 				}
 			}
 		}
@@ -747,7 +779,7 @@ public:
 		HBITMAP hBitmap;
 		RECT overlayRect;
 
-		// Fenstergr��e des Overlays abrufen
+		// Fenstergröße des Overlays abrufen
 		GetWindowRect(overlayWindow, &overlayRect);
 		int width = overlayRect.right - overlayRect.left;
 		int height = overlayRect.bottom - overlayRect.top;
@@ -805,3 +837,10 @@ private:
 		return -1;
 	}
 };
+
+
+
+
+
+
+
