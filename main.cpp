@@ -8,9 +8,6 @@
 #pragma comment(lib, "dwmapi.lib")
 #include "Dwmapi.h"
 
-
-
-// Data
 static ID3D11Device*            g_pd3dDevice = nullptr;
 static ID3D11DeviceContext*     g_pd3dDeviceContext = nullptr;
 static IDXGISwapChain*          g_pSwapChain = nullptr;
@@ -77,7 +74,7 @@ void SetOverlayToTarget(HWND WindowHandle, HWND OverlayHandle, Vector2& ScreenXY
 }
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Main code
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     
@@ -87,7 +84,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     MARGINS margins = { -1 };
     DwmExtendFrameIntoClientArea(hwnd, &margins);
 
-    // Initialize Direct3D
     if (!CreateDeviceD3D(hwnd))
     {
         CleanupDeviceD3D();
@@ -95,30 +91,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    // Show the window
     ::ShowWindow(hwnd, SW_SHOWDEFAULT);   
     ::UpdateWindow(hwnd);
-    // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
-    io.ConfigFlags |= ImGuiConfigFlags_None;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_None;
 
 	ImFont* DefaultFont = io.Fonts->AddFontDefault();
     ImFont* MyArialFont = io.Fonts->AddFontFromFileTTF("C:/Windows/Fonts/arialbd.ttf", 18.0f); // Arial Bold
 	
     
     ImGui::StyleColorsDark();
-    //ImGui::StyleColorsLight();
 
-    // Setup Platform/Renderer backends
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(g_pd3dDevice, g_pd3dDeviceContext);
-    // Our state
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
 
-    // Main loop
     bool done = false;
     
     InitHax Hax;
@@ -156,7 +146,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         SetOverlayToTarget(Hax.TargetHWND, hwnd, Screen);
         
 
-        // Start the Dear ImGui frame
         ImGui_ImplDX11_NewFrame();        
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
@@ -181,7 +170,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ImGui::SliderFloat("FPS Limit", &fpsValue, 1.0f, 170.0f);
         fpsLimiter.setTargetFPS(fpsValue);
         ImGui::ColorEdit4("color", (float*)&clear_color);
-        // Slider für maximale Distance
 		ImGui::Checkbox("ESP", &esp);
         ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 5000.f);
 		ImGui::Checkbox("Use Cutscene Check", &useCutsceneCheck);
@@ -191,29 +179,21 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         if (ImGui::Button("screenmaker", ImVec2(100, 20)))
         {
-            HWND overlayWindow = FindWindow(NULL, L"DebugOverlay"); // Fensterhandle des Overlays finden
+            HWND overlayWindow = FindWindow(NULL, L"DebugOverlay");
             if (overlayWindow) {
                 DebugScreenshot::SaveOverlayScreenshot(overlayWindow, L"screen");
             }
 
         }
-        // Display CamPos
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", CamPos.x, CamPos.y, CamPos.z);
-        // Display TestPos
         ImGui::Text("ScreenPos: (%.3f, %.3f)", ScreenPos.x, ScreenPos.y);
         ImGui::Text("Valid Ents: %d", entityManager.validEntities);
         ImGui::End();
 
 
-        ImGui::PopFont();
-		
-        
+        ImGui::PopFont();	
         MyArialFont->Scale = 0.8f;
         ImGui::PushFont(MyArialFont);
-        
-        
-
-        
 
         if (flyhack)
         {
@@ -232,18 +212,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             }
         }
 		
-		
-        
-        
-        
-
-
-
-
 
         ImGui::PopFont();
-        // Rendering
-        // Clear render target with transparent color
         float TransparentColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         g_pd3dDeviceContext->ClearRenderTargetView(g_mainRenderTargetView, TransparentColor);
         ImGui::Render();
@@ -260,11 +230,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
 
         //g_pSwapChain->Present(1, 0); // Present with vsync
-        g_pSwapChain->Present(1, 0); // Present without vsync
+        g_pSwapChain->Present(1, 0);
     }
 
-    // Cleanup
-    // beende MinHook
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();
@@ -277,11 +245,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     return 0;
 }
 
-// Helper functions
 
 bool CreateDeviceD3D(HWND hWnd)
 {
-    // Setup swap chain
     DXGI_SWAP_CHAIN_DESC sd;
     ZeroMemory(&sd, sizeof(sd));
     sd.BufferCount = 2;
@@ -299,11 +265,10 @@ bool CreateDeviceD3D(HWND hWnd)
     sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
     UINT createDeviceFlags = 0;
-    //createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
     D3D_FEATURE_LEVEL featureLevel;
     const D3D_FEATURE_LEVEL featureLevelArray[2] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0, };
     HRESULT res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
-    if (res == DXGI_ERROR_UNSUPPORTED) // Try high-performance WARP software driver if hardware is not available.
+    if (res == DXGI_ERROR_UNSUPPORTED)
         res = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
     if (res != S_OK)
         return false;
@@ -330,14 +295,8 @@ void CleanupRenderTarget()
     if (g_mainRenderTargetView) { g_mainRenderTargetView->Release(); g_mainRenderTargetView = nullptr; }
 }
 
-// Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Win32 message handler
-// You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-// - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-// - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-// Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
 LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -354,7 +313,7 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         return 0;
     case WM_SYSCOMMAND:
-        if ((wParam & 0xfff0) == SC_KEYMENU) // Disable ALT application menu
+        if ((wParam & 0xfff0) == SC_KEYMENU)
             return 0;
         break;
     case WM_DESTROY:
