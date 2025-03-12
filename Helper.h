@@ -15,6 +15,8 @@
 #include <chrono>
 #include <gdiplus.h>
 #include <algorithm>
+#include <mutex>
+#include <emmintrin.h> // Für _mm_pause()
 
 #pragma comment(lib, "gdiplus.lib")
 
@@ -122,6 +124,60 @@ public:
 
 
 
+class FPSLimiter {
+private:
+	LARGE_INTEGER frequency;
+	LARGE_INTEGER frameStart, frameEnd;
+	double targetFrameTime;
+	float targetFPS;
+
+	// Berechnet die verstrichene Zeit in Millisekunden
+	double getElapsedTime(LARGE_INTEGER start, LARGE_INTEGER end) {
+		return (double)(end.QuadPart - start.QuadPart) * 1000.0 / (double)frequency.QuadPart;
+	}
+
+public:
+
+
+	// Konstruktor: Initialisiert den High-Precision Timer
+	FPSLimiter(float fps) {
+		QueryPerformanceFrequency(&frequency);
+		QueryPerformanceCounter(&frameStart);
+		setTargetFPS(fps);
+	}
+
+	// FPS-Limit setzen
+	void setTargetFPS(float fps) {
+		targetFPS = (fps <= 0.0f) ? 170.0f : fps;  // 170 = unbegrenzt
+		targetFrameTime = 1000.0 / targetFPS;      // Ziel-Framezeit in ms
+	}
+
+	// Getter für FPS-Wert, um ImGui-Slider zu unterstützen
+	float getTargetFPS() const {
+		return targetFPS;
+	}
+
+	// FPS-Begrenzung anwenden
+	void cap(const ImGuiIO& io) {
+		if (targetFPS == 170.0f) return;  // FPS-Limiter deaktiviert
+
+		QueryPerformanceCounter(&frameEnd);
+		double elapsedTime = getElapsedTime(frameStart, frameEnd);
+		double frameTime = 1000.0 / io.Framerate;
+		double sleepTime = targetFrameTime - frameTime;
+
+		if (sleepTime > 0) {
+			if (sleepTime > 1.0) {
+				Sleep(static_cast<DWORD>(sleepTime));
+			}
+			else {
+				_mm_pause();  // Präzises Timing für kurze Wartezeiten
+			}
+		}
+
+		QueryPerformanceCounter(&frameStart);  // Timer für den nächsten Frame neu starten
+	}
+};
 
 class RenderHelper {
 public:
@@ -129,7 +185,6 @@ public:
 	static float Distance3D(const Vector3& point1, const Vector3& point2) {
 		return point1.DistTo(point2);
 	}
-
 	// Wandelt Weltkoordinaten in Bildschirmkoordinaten um (Far Cry)
 	static bool W2SCryEngine(Vector3 pos, Vector2& screen, float matrix[16], int windowWidth, int windowHeight) {
 		DirectX::XMFLOAT4 clipCoords;
@@ -149,14 +204,10 @@ public:
 		screen.y = (windowHeight / 2) * (1 - NDC.y);  // Y-Achse in DirectX ist invertiert
 		return true;
 	}
-
-	
-
 	// Berechnet die mittlere Position für die Textdarstellung
 	static float CalcMiddlePos(float vScreenX, const char* Text) {
 		return vScreenX - ((strlen(Text) / 2) * 5);
 	}
-
 	// Debug-Funktion zum Zeichnen von Bone-Strukturen (Skelett-Rendering)
 	static void DebugBones(HANDLE hProcess, ImDrawList* drawList, float viewMatrix[16], uintptr_t boneArray, int boneCount, ImU32 color = IM_COL32(255, 0, 0, 255)) {
 		if (!boneArray || boneCount <= 0) return;
@@ -176,6 +227,8 @@ public:
 			}
 		}
 	}
+
+
 };
 
 extern class InitHax
@@ -473,12 +526,17 @@ private:
 		std::string name;
 		float distance;
 	};
+
 	HANDLE hProcess;
 	uintptr_t entityListAddress;
 	std::unordered_map<uintptr_t, Entity> entityCache;
 	std::vector<uintptr_t> entityAddresses;
-	std::atomic<bool> stopThread{ false }; // Steuerung für den Adress-Update-Thread
+	std::atomic<bool> stopThread{ false };
 	std::thread addressThread;
+	std::thread dataThread;
+	std::mutex entityMutex;
+	Vector3 cameraPosition;
+	float maxEntityDistance = 5000.0f;
 
 	std::vector<std::pair<std::string, ImU32>> entityFilters = {
 		{"dog", IM_COL32(0, 0, 255, 255)},
@@ -498,81 +556,102 @@ private:
 	};
 
 public:
-
-	int validEntites;
+	int validEntities;
 
 	EntityManager(HANDLE process, uintptr_t baseAddress)
 		: hProcess(process), entityListAddress(baseAddress) {
-		StartAddressUpdater();
+		StartThreads();
 	}
 
 	~EntityManager() {
 		stopThread = true;
 		if (addressThread.joinable()) {
-			addressThread.join(); // Thread sicher beenden
+			addressThread.join();
+		}
+		if (dataThread.joinable()) {
+			dataThread.join();
 		}
 	}
 
-	// Starte den separaten Thread für die Adress-Aktualisierung
-	void StartAddressUpdater() {
+	void StartThreads() {
 		addressThread = std::thread([this]() {
 			while (!stopThread) {
 				UpdateEntityAddresses();
-				std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Update alle 500ms
+				std::this_thread::sleep_for(std::chrono::milliseconds(50));
+			}
+			});
+
+		dataThread = std::thread([this]() {
+			while (!stopThread) {
+				UpdateEntities();
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			}
 			});
 	}
 
-	// Aktualisiert nur die Adressen der Entities
+	void SetCameraPosition(const Vector3& camPos, float maxDistance) {
+		std::lock_guard<std::mutex> lock(entityMutex);
+		cameraPosition = camPos;
+		maxEntityDistance = maxDistance;
+	}
+
 	void UpdateEntityAddresses() {
 		const int entityCount = 3000;
-		uintptr_t entListAdr = MemoryManager::FindDMAAddy(hProcess, (entityListAddress + 0x052A39D0), { 0x0 });
+		uintptr_t entListAdr = MemoryManager::FindDMAAddy(hProcess, entityListAddress + 0x052A39D0, { 0x0 });
 
 		std::vector<uintptr_t> updatedAddresses;
+		updatedAddresses.reserve(entityCount);
 
 		for (int i = 0; i < entityCount; ++i) {
 			uintptr_t pointerAddress = entListAdr + (i * 0x8);
-			uintptr_t entBase = 0x0;
+			uintptr_t entBase = 0;
 
-			if (ReadProcessMemory(hProcess, (LPVOID)(pointerAddress), &entBase, sizeof(entBase), nullptr)) {
-				if (!IsBadReadPtr(&entBase, sizeof(uintptr_t))) {
-					updatedAddresses.push_back(entBase);
+			if (ReadProcessMemory(hProcess, (LPVOID)pointerAddress, &entBase, sizeof(entBase), nullptr)) {
+				updatedAddresses.push_back(entBase);
+			}
+		}
+
+		std::lock_guard<std::mutex> lock(entityMutex);
+		entityAddresses = std::move(updatedAddresses);
+	}
+
+	void UpdateEntities() {
+		validEntities = 0;
+		std::unordered_map<uintptr_t, Entity> updatedCache;
+
+		{
+			std::lock_guard<std::mutex> lock(entityMutex);
+			for (uintptr_t entBase : entityAddresses) {
+				uintptr_t posAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
+				uintptr_t nameAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
+
+				Vector3 pos;
+				ReadProcessMemory(hProcess, (LPVOID)posAddr, &pos, sizeof(pos), nullptr);
+				float distance = RenderHelper::Distance3D(cameraPosition, pos);
+
+				if (distance < maxEntityDistance) {
+					Entity entity;
+					entity.baseAddress = entBase;
+					entity.posAddress = posAddr;
+					entity.nameAddress = nameAddr;
+					entity.position = pos;
+					entity.distance = distance;
+					updatedCache[entBase] = entity;
+					validEntities++;
 				}
 			}
 		}
 
-		entityAddresses = std::move(updatedAddresses); // Adressen-Cache sicher ersetzen
-	}
-
-	// Nutzt die gespeicherten Adressen, um Entities zu aktualisieren
-	void UpdateEntities(Vector3 camPos, float maxDistance) {
-		validEntites = 0;
-		entityCache.clear();
-		for (uintptr_t entBase : entityAddresses) {
-			uintptr_t posAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
-			uintptr_t nameAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
-
-			Vector3 pos;
-			ReadProcessMemory(hProcess, (LPVOID)(posAddr), &pos, sizeof(pos), nullptr);
-			float distance = RenderHelper::Distance3D(camPos, pos);
-
-			if (distance < maxDistance) {
-				Entity& entity = entityCache[entBase];
-				entity.baseAddress = entBase;
-				entity.posAddress = posAddr;
-				entity.nameAddress = nameAddr;
-				entity.position = pos;
-				entity.distance = distance;
-				validEntites++;
-			}
-		}
-
-		for (auto& [entBase, entity] : entityCache) {
+		for (auto& [entBase, entity] : updatedCache) {
 			entity.name = FilterEntityName(ReadEntityName(entity.nameAddress));
 		}
+
+		std::lock_guard<std::mutex> lock(entityMutex);
+		entityCache = std::move(updatedCache);
 	}
 
 	void RenderEntities(ImDrawList* drawList, float screenWidth, float screenHeight, float* matrix) {
+		std::lock_guard<std::mutex> lock(entityMutex);
 		for (const auto& [entBase, entity] : entityCache) {
 			Vector2 screenPos;
 			if (RenderHelper::W2SCryEngine(entity.position, screenPos, matrix, screenWidth, screenHeight)) {
@@ -580,7 +659,6 @@ public:
 					ImU32 color = GetEntityColor(entity.name);
 					std::ostringstream oss;
 					oss << entity.name << " " << std::fixed << std::setprecision(2) << entity.distance << "m";
-
 					drawList->AddText(ImVec2(RenderHelper::CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, oss.str().c_str());
 				}
 			}
@@ -605,7 +683,6 @@ private:
 		for (const auto& [keyword, _] : entityFilters) {
 			std::string capitalizedKeyword = keyword;
 			capitalizedKeyword[0] = std::toupper(capitalizedKeyword[0]);
-
 			if (rawName.find(keyword) != std::string::npos || rawName.find(capitalizedKeyword) != std::string::npos) {
 				return keyword;
 			}
@@ -613,6 +690,7 @@ private:
 		return rawName;
 	}
 };
+
 class DebugScreenshot {
 public:
 	static void SaveOverlayScreenshot(HWND overlayWindow, const std::wstring& filename) {

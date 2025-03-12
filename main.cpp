@@ -35,9 +35,8 @@ Vector2 ScreenPos = { 0.f, 0.f };
 
 uintptr_t MatrixAdr = 0x0;
 float Matrix[16];
-
+float fpsValue = 100.0f;
 Vector2 Screen = { 2560, 1440 };
-float FPSCap = 100.f;
 bool openMenu = false;
 bool Clickability = false;
 bool demoWindow = false;
@@ -135,7 +134,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	ModuleBaseAdresse = MemoryManager::GetModuleBaseAddressEx(ModuleName, Hax.ProcID, size);
     ExBytePatcher patcher(Hax.hProcess, ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
     EntityManager entityManager(Hax.hProcess, ModuleBaseAdresse);
-
+    FPSLimiter fpsLimiter(100.0f);
     
 
             
@@ -161,7 +160,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         
         ChangeClickability(Clickability, hwnd);
         SetOverlayToTarget(Hax.TargetHWND, hwnd, Screen);
-
+        
 
         // Start the Dear ImGui frame
         ImGui_ImplDX11_NewFrame();        
@@ -185,9 +184,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         ImGui::Begin(MenuBar);
         ImGui::Text("%.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-        ImGui::SliderFloat("FPS", &FPSCap, 1.f, 170.f);
+        ImGui::SliderFloat("FPS Limit", &fpsValue, 1.0f, 170.0f);
+        fpsLimiter.setTargetFPS(fpsValue);
         ImGui::ColorEdit4("color", (float*)&clear_color);
-
         // Slider für maximale Distance
 		ImGui::Checkbox("ESP", &esp);
         ImGui::SliderFloat("Max Distance", &maxDistance, 50.f, 5000.f);
@@ -208,13 +207,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", CamPos.x, CamPos.y, CamPos.z);
         // Display TestPos
         ImGui::Text("ScreenPos: (%.3f, %.3f)", ScreenPos.x, ScreenPos.y);
-        ImGui::Text("Valid Ents: %d", entityManager.validEntites);
+        ImGui::Text("Valid Ents: %d", entityManager.validEntities);
         ImGui::End();
 
-        if (io.Framerate > FPSCap && FPSCap != 170.f)
-        {
-            Sleep(1);
-        }       
+
         ImGui::PopFont();
 		
         
@@ -237,7 +233,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             ReadProcessMemory(Hax.hProcess, (LPVOID)MatrixAdr, &Matrix, sizeof(Matrix), NULL);
 
             if (!cutscene || !useCutsceneCheck) {
-                entityManager.UpdateEntities(CamPos, maxDistance);
+                entityManager.SetCameraPosition(CamPos, maxDistance);
                 entityManager.RenderEntities(Drawlist, 2560, 1440, Matrix);
             }
         }
@@ -266,8 +262,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
+        fpsLimiter.cap(ImGui::GetIO());
+
+
         //g_pSwapChain->Present(1, 0); // Present with vsync
-        g_pSwapChain->Present(0, 0); // Present without vsync
+        g_pSwapChain->Present(1, 0); // Present without vsync
     }
 
     // Cleanup
