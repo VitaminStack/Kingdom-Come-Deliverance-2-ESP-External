@@ -3,238 +3,125 @@
 #include <windows.h>
 #include <vector>
 #include <string>
-#include <sstream>
-#include <d3dx9.h>
 #include <d3d11.h>
 #include <directxmath.h>
 #include <psapi.h>
-#include <iomanip>
 #include <TlHelp32.h>
-#include <tchar.h>  
 #include <iostream>
 #include <cmath>
-#include <algorithm>
 #include <unordered_map>
 #include <thread>
 #include <atomic>
 #include <chrono>
 #include <gdiplus.h>
-
+#include <algorithm>
 
 #pragma comment(lib, "gdiplus.lib")
+
 struct Vector2
 {
 	float x, y;
 };
-class Vector3
-{
-public:
-
-	Vector3(void)
-	{
-		x = y = z = 0.0f;
-	}
-
-	Vector3(float X, float Y, float Z)
-	{
-		x = X; y = Y; z = Z;
-	}
-
-	Vector3(float* v)
-	{
-		x = v[0]; y = v[1]; z = v[2];
-	}
-
-	Vector3(const float* v)
-	{
-		x = v[0]; y = v[1]; z = v[2];
-	}
-
-	Vector3(const Vector3& v)
-	{
-		x = v.x; y = v.y; z = v.z;
-	}
-
-	Vector3(const Vector2& v)
-	{
-		x = v.x; y = v.y; z = 0.0f;
-	}
-
-	Vector3& operator=(const Vector3& v)
-	{
-		x = v.x; y = v.y; z = v.z; return *this;
-	}
-
-
-
-	Vector3& operator=(const Vector2& v)
-	{
-		x = v.x; y = v.y; z = 0.0f; return *this;
-	}
-
-	float& operator[](int i)
-	{
-		return ((float*)this)[i];
-	}
-
-	float operator[](int i) const
-	{
-		return ((float*)this)[i];
-	}
-
-	Vector3& operator+=(const Vector3& v)
-	{
-		x += v.x; y += v.y; z += v.z; return *this;
-	}
-
-	Vector3& operator-=(const Vector3& v)
-	{
-		x -= v.x; y -= v.y; z -= v.z; return *this;
-	}
-
-	Vector3& operator*=(const Vector3& v)
-	{
-		x *= v.x; y *= v.y; z *= v.z; return *this;
-	}
-
-	Vector3& operator/=(const Vector3& v)
-	{
-		x /= v.x; y /= v.y; z /= v.z; return *this;
-	}
-
-	Vector3& operator==(const Vector3& v)
-	{
-
-	}
-
-	Vector3& operator+=(float v)
-	{
-		x += v; y += v; z += v; return *this;
-	}
-
-	Vector3& operator-=(float v)
-	{
-		x -= v; y -= v; z -= v; return *this;
-	}
-
-	Vector3& operator*=(float v)
-	{
-		x *= v; y *= v; z *= v; return *this;
-	}
-
-	Vector3& operator/=(float v)
-	{
-		x /= v; y /= v; z /= v; return *this;
-	}
-
-
-
-	Vector3 operator+(const Vector3& v) const
-	{
-		if (this->x == 0 && this->y == 0 && this->z == 0)
-			return Vector3(0.0f, 0.0f, 0.0f);
-
-		return Vector3(x + v.x, y + v.y, z + v.z);
-	}
-
-	Vector3 operator-(const Vector3& v) const
-	{
-		return Vector3(x - v.x, y - v.y, z - v.z);
-	}
-
-	Vector3 operator*(const Vector3& v) const
-	{
-		return Vector3(x * v.x, y * v.y, z * v.z);
-	}
-
-	Vector3 operator/(const Vector3& v) const
-	{
-		return Vector3(x / v.x, y / v.y, z / v.z);
-	}
-
-	Vector3 operator+(float v) const
-	{
-		return Vector3(x + v, y + v, z + v);
-	}
-
-	Vector3 operator-(float v) const
-	{
-		return Vector3(x - v, y - v, z - v);
-	}
-
-	Vector3 operator*(float v) const
-	{
-		return Vector3(x * v, y * v, z * v);
-	}
-
-	Vector3 operator/(float v) const
-	{
-		return Vector3(x / v, y / v, z / v);
-	}
-
-	void Set(float X = 0.0f, float Y = 0.0f, float Z = 0.0f)
-	{
-		x = X; y = Y; z = Z;
-	}
-
-	float Length(void) const
-	{
-		return sqrtf(x * x + y * y + z * z);
-	}
-
-	float LengthSqr(void) const
-	{
-		return (x * x + y * y + z * z);
-	}
-
-	float Length2d(void) const
-	{
-		return sqrtf(x * x + y * y);
-	}
-
-	float Length2dSqr(void) const
-	{
-		return (x * x + y * y);
-	}
-
-	float DistTo(const Vector3& v) const
-	{
-		return (*this - v).Length();
-	}
-
-	float DistToSqr(const Vector3& v) const
-	{
-		return (*this - v).LengthSqr();
-	}
-
-	float Dot(const Vector3& v) const
-	{
-		if (v.x == 0 && v.y == 0 && v.z == 0)
-			return 0.0f;
-
-		return (x * v.x + y * v.y + z * v.z);
-
-
-	}
-
-
-	Vector3 Cross(const Vector3& v) const
-	{
-		return Vector3(y * v.z - z * v.y, z * v.x - x * v.z, x * v.y - y * v.x);
-	}
-
-	bool IsZero(void) const
-	{
-		return (x > -0.01f && x < 0.01f &&
-			y > -0.01f && y < 0.01f &&
-			z > -0.01f && z < 0.01f);
-	}
-
-
-
+class Vector3 {
 public:
 	float x, y, z;
+
+	// Standardkonstruktor mit Initialisierungsliste
+	Vector3() : x(0), y(0), z(0) {}
+	Vector3(float X, float Y, float Z) : x(X), y(Y), z(Z) {}
+	Vector3(const float* v) : x(v[0]), y(v[1]), z(v[2]) {}
+	Vector3(const Vector3& v) = default; // Standard-Kopierkonstruktor
+
+	// Zuweisungsoperatoren
+	Vector3& operator=(const Vector3& v) = default;
+
+	// Vergleichsoperatoren
+	bool operator==(const Vector3& v) const {
+		return (x == v.x && y == v.y && z == v.z);
+	}
+	bool operator!=(const Vector3& v) const {
+		return !(*this == v);
+	}
+
+	// Arithmetische Operatoren
+	Vector3 operator+(const Vector3& v) const {
+		return Vector3(x + v.x, y + v.y, z + v.z);
+	}
+	Vector3 operator-(const Vector3& v) const {
+		return Vector3(x - v.x, y - v.y, z - v.z);
+	}
+	Vector3 operator*(float scalar) const {
+		return Vector3(x * scalar, y * scalar, z * scalar);
+	}
+	Vector3 operator/(float scalar) const {
+		return (scalar != 0) ? Vector3(x / scalar, y / scalar, z / scalar) : Vector3(0, 0, 0);
+	}
+
+	Vector3& operator+=(const Vector3& v) {
+		x += v.x; y += v.y; z += v.z;
+		return *this;
+	}
+	Vector3& operator-=(const Vector3& v) {
+		x -= v.x; y -= v.y; z -= v.z;
+		return *this;
+	}
+	Vector3& operator*=(float scalar) {
+		x *= scalar; y *= scalar; z *= scalar;
+		return *this;
+	}
+	Vector3& operator/=(float scalar) {
+		if (scalar != 0) {
+			x /= scalar; y /= scalar; z /= scalar;
+		}
+		return *this;
+	}
+
+	// Vektoroperationen
+	float length() const {
+		return std::sqrt(x * x + y * y + z * z);
+	}
+
+	float lengthSquared() const {
+		return x * x + y * y + z * z;
+	}
+
+	Vector3 normalize() const {
+		float len = length();
+		return (len != 0) ? *this / len : Vector3(0, 0, 0);
+	}
+
+	float dot(const Vector3& v) const {
+		return x * v.x + y * v.y + z * v.z;
+	}
+
+	Vector3 cross(const Vector3& v) const {
+		return Vector3(
+			y * v.z - z * v.y,
+			z * v.x - x * v.z,
+			x * v.y - y * v.x
+		);
+	}
+
+	bool isZero() const {
+		return (x == 0 && y == 0 && z == 0);
+	}
+
+	void set(float X, float Y, float Z) {
+		x = X; y = Y; z = Z;
+	}
+	float DistTo(const Vector3& v) const
+	{
+		return (*this - v).length();
+	}
+	// Ausgabe für Debugging
+	friend std::ostream& operator<<(std::ostream& os, const Vector3& v) {
+		os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
+		return os;
+	}
 };
+
+
+
 
 class RenderHelper {
 public:
@@ -245,7 +132,7 @@ public:
 
 	// Wandelt Weltkoordinaten in Bildschirmkoordinaten um (Far Cry)
 	static bool W2SCryEngine(Vector3 pos, Vector2& screen, float matrix[16], int windowWidth, int windowHeight) {
-		D3DXVECTOR4 clipCoords;
+		DirectX::XMFLOAT4 clipCoords;
 		clipCoords.x = pos.x * matrix[0] + pos.y * matrix[4] + pos.z * matrix[8] + matrix[12];
 		clipCoords.y = pos.x * matrix[1] + pos.y * matrix[5] + pos.z * matrix[9] + matrix[13];
 		clipCoords.z = pos.x * matrix[2] + pos.y * matrix[6] + pos.z * matrix[10] + matrix[14];
@@ -258,47 +145,12 @@ public:
 		NDC.y = clipCoords.y / clipCoords.w;
 		NDC.z = clipCoords.z / clipCoords.w;
 
-		screen.x = (windowWidth / 2 * NDC.x) + (NDC.x + windowWidth / 2);
-		screen.y = -(windowHeight / 2 * NDC.y) + (NDC.y + windowHeight / 2);
+		screen.x = (windowWidth / 2) * (1 + NDC.x);
+		screen.y = (windowHeight / 2) * (1 - NDC.y);  // Y-Achse in DirectX ist invertiert
 		return true;
 	}
 
-	// Erstellt eine Matrix basierend auf Rotation
-	static D3DXMATRIX ToMatrix(Vector3 Rotation) {
-		float radPitch = (Rotation.x * float(3.1415926535897932f) / 180.f);
-		float radYaw = (Rotation.y * float(3.1415926535897932f) / 180.f);
-		float radRoll = (Rotation.z * float(3.1415926535897932f) / 180.f);
-
-		float SP = sinf(radPitch);
-		float CP = cosf(radPitch);
-		float SY = sinf(radYaw);
-		float CY = cosf(radYaw);
-		float SR = sinf(radRoll);
-		float CR = cosf(radRoll);
-
-		D3DMATRIX matrix;
-		matrix.m[0][0] = CP * CY;
-		matrix.m[0][1] = CP * SY;
-		matrix.m[0][2] = SP;
-		matrix.m[0][3] = 0.f;
-
-		matrix.m[1][0] = SR * SP * CY - CR * SY;
-		matrix.m[1][1] = SR * SP * SY + CR * CY;
-		matrix.m[1][2] = -SR * CP;
-		matrix.m[1][3] = 0.f;
-
-		matrix.m[2][0] = -(CR * SP * CY + SR * SY);
-		matrix.m[2][1] = CY * SR - CR * SP * SY;
-		matrix.m[2][2] = CR * CP;
-		matrix.m[2][3] = 0.f;
-
-		matrix.m[3][0] = 0.f;
-		matrix.m[3][1] = 0.f;
-		matrix.m[3][2] = 0.f;
-		matrix.m[3][3] = 1.f;
-
-		return matrix;
-	}
+	
 
 	// Berechnet die mittlere Position für die Textdarstellung
 	static float CalcMiddlePos(float vScreenX, const char* Text) {
@@ -326,7 +178,6 @@ public:
 	}
 };
 
-
 extern class InitHax
 {
 public:
@@ -342,21 +193,7 @@ public:
 		ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(T), nullptr);
 		return buffer;
 	}
-	static std::string ReadStringFromMemory(HANDLE hProcess, uintptr_t address, size_t bufferSize = 256) {
-		char* buffer = new char[bufferSize];
-		SIZE_T bytesRead = 0;
-
-		// Lese den Speicher des Zielprozesses
-		if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), buffer, bufferSize - 1, &bytesRead)) {
-			buffer[bytesRead] = '\0'; // Sicherstellen, dass der String nullterminiert ist
-			std::string result(buffer);
-			delete[] buffer;
-			return result;
-		}
-
-		delete[] buffer;
-		return ""; // Rückgabe eines leeren Strings bei Fehler
-	}
+	
 	HWND FindWindowByProcessId(DWORD processId)
 	{
 		HWND hwnd = GetTopWindow(NULL);
@@ -392,14 +229,13 @@ public:
 			return processInfo.th32ProcessID;
 		}
 
-		while (Process32Next(snapshot, &processInfo))
-		{
-			if (!_tcscmp(processInfo.szExeFile, processName))
-			{
+		while (Process32Next(snapshot, &processInfo)) {
+			if (_tcscmp(processInfo.szExeFile, processName) == 0) {
 				CloseHandle(snapshot);
 				return processInfo.th32ProcessID;
 			}
 		}
+
 
 		CloseHandle(snapshot);
 		return 0;
@@ -422,8 +258,6 @@ public:
 		return hProcess;
 	}
 };
-
-
 class ExBytePatcher {
 private:
 	HANDLE hProcess;
@@ -491,7 +325,14 @@ public:
 			VirtualProtect((LPVOID)address, size, oldProtect, &oldProtect);
 		}
 	}
-
+	static std::string ReadStringFromMemory(HANDLE hProcess, uintptr_t address, size_t bufferSize = 256) {
+		std::vector<char> buffer(bufferSize, '\0');
+		SIZE_T bytesRead;
+		if (ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), buffer.data(), bufferSize - 1, &bytesRead)) {
+			return std::string(buffer.data());
+		}
+		return "";
+	}
 	// ✅ Modulbasisadresse & Größe holen
 	static uintptr_t GetModuleBaseAddressEx(const wchar_t* moduleName, DWORD pID, DWORD& moduleSize) {
 		uintptr_t baseAddress = 0;
@@ -748,7 +589,7 @@ public:
 
 private:
 	std::string ReadEntityName(uintptr_t nameAddr) {
-		return InitHax::ReadStringFromMemory(hProcess, nameAddr, 30);
+		return MemoryManager::ReadStringFromMemory(hProcess, nameAddr, 30);
 	}
 
 	ImU32 GetEntityColor(const std::string& name) {

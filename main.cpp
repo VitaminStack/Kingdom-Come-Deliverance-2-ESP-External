@@ -37,7 +37,7 @@ uintptr_t MatrixAdr = 0x0;
 float Matrix[16];
 
 Vector2 Screen = { 2560, 1440 };
-float FPSCap = 169.f;
+float FPSCap = 100.f;
 bool openMenu = false;
 bool Clickability = false;
 bool demoWindow = false;
