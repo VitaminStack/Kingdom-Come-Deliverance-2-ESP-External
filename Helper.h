@@ -664,13 +664,35 @@ public:
 					ImU32 color = GetEntityColor(entity.name);
 					std::ostringstream oss;
 					oss << entity.name << " " << std::fixed << std::setprecision(2) << entity.distance << "m";
-					drawList->AddText(ImVec2(RenderHelper::CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, oss.str().c_str());
+					RenderOutlinedText(drawList,ImVec2(RenderHelper::CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, IM_COL32(0, 0, 0, 255), oss.str().c_str());
 				}
 			}
 		}
 	}
 
 private:
+
+	void RenderOutlinedText(ImDrawList* draw_list, ImVec2 pos, ImU32 textColor, ImU32 outlineColor, const char* text) {
+		const float offset = 1.5f; // Abstand für den Rand
+
+		// Rand (in 4 Richtungen zeichnen)
+		draw_list->AddText(ImVec2(pos.x - offset, pos.y), outlineColor, text);
+		draw_list->AddText(ImVec2(pos.x + offset, pos.y), outlineColor, text);
+		draw_list->AddText(ImVec2(pos.x, pos.y - offset), outlineColor, text);
+		draw_list->AddText(ImVec2(pos.x, pos.y + offset), outlineColor, text);
+
+		// Originaler Text
+		draw_list->AddText(pos, textColor, text);
+	}
+
+	// Verwendung in deinem ImGui Rendering-Code:
+	void RenderUI() {
+		ImDrawList* draw_list = ImGui::GetWindowDrawList();
+		ImVec2 pos = ImVec2(100, 100); // Position auf dem Bildschirm
+		RenderOutlinedText(draw_list, pos, IM_COL32(255, 255, 0, 255), IM_COL32(255, 255, 255, 255), "tneb_zizka 6.84m");
+	}
+
+
 	std::string ReadEntityName(uintptr_t nameAddr) {
 		return MemoryManager::ReadStringFromMemory(hProcess, nameAddr, 30);
 	}
