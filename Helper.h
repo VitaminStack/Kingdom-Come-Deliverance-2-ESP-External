@@ -543,21 +543,30 @@ private:
 	Vector3 cameraPosition;
 	float maxEntityDistance = 5000.0f;
 
+	const ImU32 FRIENDLY_COLOR = IM_COL32(0, 191, 255, 255);  // Blue
+	const ImU32 ENEMY_COLOR = IM_COL32(255, 0, 0, 255);      // Red
+	const ImU32 NEUTRAL_COLOR = IM_COL32(0, 255, 0, 255);    // Green
+
 	std::vector<std::pair<std::string, ImU32>> entityFilters = {
-		{"dog", IM_COL32(0, 0, 255, 255)},
-		{"deer", IM_COL32(0, 255, 0, 255)},
-		{"hare", IM_COL32(0, 255, 0, 255)},
-		{"cow", IM_COL32(0, 255, 0, 255)},
-		{"bull", IM_COL32(0, 255, 0, 255)},
-		{"pig", IM_COL32(0, 255, 0, 255)},
-		{"wilddog", IM_COL32(255, 0, 0, 255)},
-		{"sheep", IM_COL32(0, 255, 0, 255)},
-		{"wolf", IM_COL32(255, 0, 0, 255)},
-		{"Boar", IM_COL32(255, 0, 0, 255)},
-		{"enemy", IM_COL32(255, 0, 0, 255)},
-		{"woman", IM_COL32(0, 0, 255, 255)},
-		{"man", IM_COL32(0, 0, 255, 255)},
-		{"horse", IM_COL32(0, 0, 255, 255)}
+		// Friendly entities (blue)
+		{"dog", FRIENDLY_COLOR},
+		{"horse", FRIENDLY_COLOR},
+		{"woman", FRIENDLY_COLOR},
+		{"man", FRIENDLY_COLOR},
+
+		// Enemy entities (red)
+		{"wilddog", ENEMY_COLOR},
+		{"wolf", ENEMY_COLOR},
+		{"boar", ENEMY_COLOR},
+		{"enemy", ENEMY_COLOR},
+
+		// Neutral entities (green)
+		{"deer", NEUTRAL_COLOR},
+		{"hare", NEUTRAL_COLOR},
+		{"cow", NEUTRAL_COLOR},
+		{"bull", NEUTRAL_COLOR},
+		{"pig", NEUTRAL_COLOR},
+		{"sheep", NEUTRAL_COLOR}
 	};
 
 public:
