@@ -19,6 +19,7 @@
 #include <emmintrin.h> // Für _mm_pause()
 #include "imgui/imgui.h"
 #include <tchar.h>
+#include "imgui/imgui_internal.h"
 
 #pragma comment(lib, "gdiplus.lib")
 
@@ -186,6 +187,11 @@ public:
 
 class RenderHelper {
 public:
+
+	bool Clickability = false;
+	bool openMenu = false;
+
+
 	// Berechnet die 3D-Distanz zwischen zwei Punkten
 	static float Distance3D(const Vector3& point1, const Vector3& point2) {
 		return point1.DistTo(point2);
@@ -232,7 +238,82 @@ public:
 			}
 		}
 	}
+	void ChangeClickability(HWND ownd)
+	{
+		// Toggle-Funktion durch VK_INSERT
+		if (GetAsyncKeyState(VK_INSERT) & 1)
+		{
+			Clickability = !Clickability; // Zustand umschalten
+			openMenu = !openMenu;
+		}
 
+		// Fensterstil anpassen
+		long style = GetWindowLong(ownd, GWL_EXSTYLE);
+		if (Clickability) {
+			style &= ~WS_EX_LAYERED;
+			SetWindowLong(ownd, GWL_EXSTYLE, style);
+			SetForegroundWindow(ownd); // Nur wenn Clickability aktiv ist
+		}
+		else {
+			style |= WS_EX_LAYERED;
+			SetWindowLong(ownd, GWL_EXSTYLE, style);
+		}
+	}
+	void SetOverlayToTarget(HWND WindowHandle, HWND OverlayHandle, Vector2& ScreenXY)
+	{
+		RECT rect;
+		GetWindowRect(WindowHandle, &rect);
+
+		int Breite = (rect.right - rect.left);
+		int Höhe = (rect.bottom - rect.top);
+
+		ScreenXY.x = static_cast<float>(rect.right - rect.left);
+		ScreenXY.y = static_cast<float>(rect.bottom - rect.top);
+
+		MoveWindow(OverlayHandle, rect.left, rect.top, Breite, Höhe, true);
+	}
+	// Zeichnet ein rotierendes und bewegendes Dreieck in der oberen rechten Ecke des Fensters
+	static void RenderRotatingTriangle(ImDrawList* drawList, ImVec2 screenSize) {
+		static float timeElapsed = 0.0f;
+		static float posXOffset = 0.0f;
+		static float angle = 0.0f;
+
+		// Zeit aktualisieren (sorgt für Bewegung & Animation)
+		timeElapsed += 0.02f;
+
+		// Leichte Bewegung von links nach rechts
+		posXOffset = sin(timeElapsed) * 50.0f;
+
+		// Rotation erhöhen
+		angle += 0.03f;
+
+		// Farben dynamisch ändern (HSL-Farbkreis -> RGB)
+		ImU32 color = IM_COL32(
+			static_cast<int>(sin(timeElapsed * 2.0f) * 127 + 128),  // R
+			static_cast<int>(sin(timeElapsed * 2.0f + 2.0f) * 127 + 128),  // G
+			static_cast<int>(sin(timeElapsed * 2.0f + 4.0f) * 127 + 128),  // B
+			255  // Alpha bleibt 255
+		);
+
+		// Position des Dreiecks (rechts oben)
+		ImVec2 center(screenSize.x - 200 + posXOffset, 100);
+
+		// Berechnung der 3 Punkte des Dreiecks
+		float radius = 60.0f; // Größe des Dreiecks
+		ImVec2 points[3];
+
+		for (int i = 0; i < 3; i++) {
+			float theta = angle + i * (2.0f * IM_PI / 3.0f); // 120° pro Punkt
+			points[i] = ImVec2(
+				center.x + cos(theta) * radius,
+				center.y + sin(theta) * radius
+			);
+		}
+
+		// Zeichnen des Dreiecks mit der dynamischen Farbe
+		drawList->AddTriangleFilled(points[0], points[1], points[2], color);
+	}
+private:		
 
 };
 
