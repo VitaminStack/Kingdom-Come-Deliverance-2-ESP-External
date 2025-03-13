@@ -211,7 +211,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
                 entityManager.RenderEntities(Drawlist, 2560, 1440, Matrix);
             }
         }
-		
 
         ImGui::PopFont();
         float TransparentColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };

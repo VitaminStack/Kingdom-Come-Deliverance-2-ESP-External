@@ -220,7 +220,7 @@ public:
 		for (int i = 0; i < boneCount; ++i) {
 			Vector3 bonePos = { 0, 0, 0 };
 
-			if (!ReadProcessMemory(hProcess, (LPVOID)(boneArray + 0x8 + (i * 0x38)), &bonePos, sizeof(Vector3), nullptr)) {
+			if (!ReadProcessMemory(hProcess, (LPVOID)(boneArray + (i * 0xE8)), &bonePos, sizeof(Vector3), nullptr)) {
 				continue;
 			}
 
@@ -501,7 +501,7 @@ public:
 	FlyHack(HANDLE process, uintptr_t baseAddress)
 		: hProcess(process) {
 		// Find the velocity memory address using pointer path
-		velocityAddress = MemoryManager::FindDMAAddy(process, baseAddress + 0x053F84E0, { 0x0, 0x300, 0x38, 0xC0, 0xC4 });
+		velocityAddress = MemoryManager::FindDMAAddy(process, baseAddress + 0x53F8320, { 0x78,0x28,0x7c0,0x164 });
 	}
 
 	void Update() {
@@ -550,7 +550,7 @@ private:
 	std::vector<std::pair<std::string, ImU32>> entityFilters = {
 		// Friendly entities (blue)
 		{"dog", FRIENDLY_COLOR},
-		{"horse", FRIENDLY_COLOR},
+		{"horse", NEUTRAL_COLOR},
 		{"woman", FRIENDLY_COLOR},
 		{"man", FRIENDLY_COLOR},
 
