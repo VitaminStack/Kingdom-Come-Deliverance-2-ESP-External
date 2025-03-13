@@ -143,7 +143,7 @@ private:
 	}
 
 public:
-
+	float fpsValue = 60.0f;
 
 	// Konstruktor: Initialisiert den High-Precision Timer
 	FPSLimiter(float fps) {
@@ -188,9 +188,18 @@ public:
 class RenderHelper {
 public:
 
+	bool ESP_Status = true;
+	bool useCutsceneCheck = true;
+	float maxDistance = 5000.0f;
 	bool Clickability = false;
 	bool openMenu = false;
 
+	float Matrix[16];
+	Vector3 CamPos;
+
+	uintptr_t MatrixAdr = 0x0;	
+	uintptr_t CamPosAdr = 0x5209DA8;
+	uintptr_t CutsceneActive = 0x528C8D8;
 
 	// Berechnet die 3D-Distanz zwischen zwei Punkten
 	static float Distance3D(const Vector3& point1, const Vector3& point2) {
@@ -445,6 +454,7 @@ private:
 
 public:
 	MemoryManager(HANDLE process) : hProcess(process) {}
+	uintptr_t ModuleBaseAdresse;
 
 	// ✅ Statische Methode: FindDMAAddy kann direkt ohne Instanz genutzt werden
 	static uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, const std::vector<unsigned int>& offsets) {
@@ -579,6 +589,9 @@ private:
 	}
 
 public:
+
+	bool flyhackstatus = false;
+
 	FlyHack(HANDLE process, uintptr_t baseAddress)
 		: hProcess(process) {
 		// Find the velocity memory address using pointer path
