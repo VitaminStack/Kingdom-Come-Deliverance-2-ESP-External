@@ -29,4 +29,4 @@ void CleanupDeviceD3D();
 void CreateRenderTarget();
 void CleanupRenderTarget();
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-void RenderOverlay();
+void RenderOverlay(InitHax Hax);

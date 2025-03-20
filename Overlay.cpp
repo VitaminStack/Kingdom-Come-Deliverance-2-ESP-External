@@ -147,7 +147,7 @@ LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 // Hauptfunktion für das Overlay
-void RenderOverlay()
+void RenderOverlay(InitHax Hax)
 {
     WNDCLASSEX wc = { sizeof(WNDCLASSEX), ACS_TRANSPARENT, WindowProc, 0L, 0L, GetModuleHandle(NULL), NULL, LoadCursor(NULL, IDC_ARROW), NULL, NULL, _T("Overlay"), NULL };
     RegisterClassEx(&wc);
@@ -177,10 +177,7 @@ void RenderOverlay()
 
     DWORD size;
     int validEnts = 0;
-    InitHax Hax;
-    //Hax.hProcess = Hax.GetAndLoadHax(L"Kingdom Come: Deliverance II");    
-    Hax.hProcess = Hax.GetAndLoadHax(L"Rechner");
-
+    
     MemoryManager MemManager(Hax.hProcess);
     RenderHelper renderHelper(Hax.hProcess);
     ExBytePatcher patcher(Hax.hProcess, MemManager.ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
