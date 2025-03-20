@@ -16,6 +16,9 @@
 # Mono auto generated files
 mono_crash.*
 
+#mystuff
+TestScreen/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/
@@ -361,4 +364,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+<<<<<<< HEAD
 /TestScreen
+=======
+>>>>>>> f49e5655944ab7fd84c1e3016673914e8a268b30
