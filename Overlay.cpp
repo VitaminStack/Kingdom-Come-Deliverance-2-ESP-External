@@ -81,7 +81,6 @@ bool CreateDeviceD3D(HWND hWnd)
     return true;
 
 }
-
 void CleanupDeviceD3D()
 
 {
@@ -95,7 +94,6 @@ void CleanupDeviceD3D()
     if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = nullptr; }
 
 }
-
 void CreateRenderTarget()
 
 {
@@ -109,7 +107,6 @@ void CreateRenderTarget()
     pBackBuffer->Release();
 
 }
-
 void CleanupRenderTarget()
 
 {
@@ -118,8 +115,6 @@ void CleanupRenderTarget()
 
 }
 
-
-// Fenster-Callback
 LRESULT CALLBACK WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
