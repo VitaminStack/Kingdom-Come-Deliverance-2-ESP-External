@@ -12,8 +12,6 @@ int ValidEntsLevel;
 int AllEntsLevel;
 
 
-int Screen_w = 2560;
-int Screen_h = 1440;
 bool running = true;
 float fps = 100.f;
 FPSLimiter fpsLimiter(60.0f);
@@ -153,7 +151,7 @@ void RenderOverlay()
 {
     WNDCLASSEX wc = { sizeof(WNDCLASSEX), ACS_TRANSPARENT, WindowProc, 0L, 0L, GetModuleHandle(NULL), NULL, LoadCursor(NULL, IDC_ARROW), NULL, NULL, _T("Overlay"), NULL };
     RegisterClassEx(&wc);
-    HWND hWndOverlay = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TRANSPARENT,wc.lpszClassName,L"Overlay",WS_POPUP,0, 0, Screen_w, Screen_h,nullptr, nullptr, nullptr, nullptr);
+    HWND hWndOverlay = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TRANSPARENT, wc.lpszClassName, L"Overlay", WS_POPUP, 0, 0, 2560, 1440, nullptr, nullptr, nullptr, nullptr);
     MARGINS margins = { -1 };
     DwmExtendFrameIntoClientArea(hWndOverlay, &margins);
 
@@ -180,11 +178,13 @@ void RenderOverlay()
     DWORD size;
     int validEnts = 0;
     InitHax Hax;
-    Hax.hProcess = Hax.GetAndLoadHax(L"Kingdom Come: Deliverance II");    
-	MemoryManager MemManager(Hax.hProcess);
-	RenderHelper renderHelper(Hax.hProcess);
+    //Hax.hProcess = Hax.GetAndLoadHax(L"Kingdom Come: Deliverance II");    
+    Hax.hProcess = Hax.GetAndLoadHax(L"Rechner");
+
+    MemoryManager MemManager(Hax.hProcess);
+    RenderHelper renderHelper(Hax.hProcess);
     ExBytePatcher patcher(Hax.hProcess, MemManager.ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
-	FlyHack flyhack(Hax.hProcess, MemManager.ModuleBaseAdresse);
+    FlyHack flyhack(Hax.hProcess, MemManager.ModuleBaseAdresse);
     MemManager.ModuleBaseAdresse = MemManager.GetModuleBaseAddressEx(L"WHGame.DLL", Hax.ProcID, size);
     EntityManager entityManager(Hax.hProcess, MemManager.ModuleBaseAdresse);
     FPSLimiter fpsLimiter(100.0f);
@@ -201,7 +201,8 @@ void RenderOverlay()
         }
         if (!running) break;
 
-        
+
+        renderHelper.SetOverlayToTarget(Hax.TargetHWND, hWndOverlay, renderHelper.WindowScreen);
         renderHelper.ChangeClickability(hWndOverlay);
         ImGuiIO& IO = ImGui::GetIO();
         fpsLimiter.cap(IO);
@@ -240,9 +241,24 @@ void RenderOverlay()
         }
         if (ImGui::Button("screenmaker", ImVec2(100, 20)))
         {
-            HWND overlayWindow = FindWindow(NULL, L"DebugOverlay");
+            HWND overlayWindow = FindWindow(NULL, L"Overlay");
             if (overlayWindow) {
                 DebugScreenshot::SaveOverlayScreenshot(overlayWindow, L"screen");
+            }
+        }
+        ImGui::SameLine(0.0f, 10.0f);
+        if (ImGui::Button("TestScreen", ImVec2(100, 20)))
+        {
+            SYSTEMTIME st;
+            GetLocalTime(&st);  // Holt lokale Zeit
+
+            wchar_t buffer[100];
+            swprintf(buffer, 100, L"%04d-%02d-%02d_%02d-%02d-%02d",
+                st.wYear, st.wMonth, st.wDay,
+                st.wHour, st.wMinute, st.wSecond);
+            HWND overlayWindow = FindWindow(NULL, L"Overlay");
+            if (overlayWindow) {
+                DebugScreenshot::SaveOverlayScreenshot(overlayWindow, L"TestScreen\\" + std::wstring(buffer));
             }
         }
         ImGui::Text("CamPos: (%.3f, %.3f, %.3f)", renderHelper.CamPos.x, renderHelper.CamPos.y, renderHelper.CamPos.z);
@@ -260,12 +276,12 @@ void RenderOverlay()
             ReadProcessMemory(Hax.hProcess, (LPVOID)renderHelper.MatrixAdr, &renderHelper.Matrix, sizeof(renderHelper.Matrix), NULL);
             if (!cutscene || !renderHelper.useCutsceneCheck) {
                 entityManager.SetCameraPosition(renderHelper.CamPos, renderHelper.maxDistance);
-                entityManager.RenderEntities(drawlist, 2560, 1440, renderHelper.Matrix);
+                entityManager.RenderEntities(drawlist, renderHelper.WindowScreen.x, renderHelper.WindowScreen.y, renderHelper.Matrix);
             }
         }
-		renderHelper.RenderRotatingTriangle(drawlist, ImVec2(Screen_w, Screen_h));
+        renderHelper.RenderRotatingTriangle(drawlist, ImVec2(renderHelper.WindowScreen.x, renderHelper.WindowScreen.y));
 
-        
+
 
         // ✅ Rendering
         float TransparentColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -284,7 +300,7 @@ void RenderOverlay()
 
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
-        g_pSwapChain->Present(0, 0);
+        g_pSwapChain->Present(1, 0);
     }
 
     // **Schließe Overlay korrekt**

@@ -193,11 +193,12 @@ public:
 	float maxDistance = 5000.0f;
 	bool Clickability = false;
 	bool openMenu = false;
+	Vector2 WindowScreen;
 
 	float Matrix[16];
 	Vector3 CamPos;
 
-	uintptr_t MatrixAdr = 0x0;	
+	uintptr_t MatrixAdr = 0x0;
 	uintptr_t CamPosAdr = 0x5209DA8;
 	uintptr_t CutsceneActive = 0x528C8D8;
 
@@ -270,17 +271,23 @@ public:
 	}
 	void SetOverlayToTarget(HWND WindowHandle, HWND OverlayHandle, Vector2& ScreenXY)
 	{
-		RECT rect;
-		GetWindowRect(WindowHandle, &rect);
+		RECT clientRect;
+		POINT pt = { 0, 0 };
 
-		int Breite = (rect.right - rect.left);
-		int Höhe = (rect.bottom - rect.top);
+		// Client-Area Größe holen
+		GetClientRect(WindowHandle, &clientRect);
+		ClientToScreen(WindowHandle, &pt); // Obere linke Ecke in Screen-Koordinaten umrechnen
 
-		ScreenXY.x = static_cast<float>(rect.right - rect.left);
-		ScreenXY.y = static_cast<float>(rect.bottom - rect.top);
+		int Breite = (clientRect.right - clientRect.left);
+		int Höhe = (clientRect.bottom - clientRect.top);
 
-		MoveWindow(OverlayHandle, rect.left, rect.top, Breite, Höhe, true);
+		ScreenXY.x = static_cast<float>(Breite);
+		ScreenXY.y = static_cast<float>(Höhe);
+
+		// Overlay exakt auf Client-Area setzen
+		MoveWindow(OverlayHandle, pt.x, pt.y, Breite, Höhe, true);
 	}
+
 	// Zeichnet ein rotierendes und bewegendes Dreieck in der oberen rechten Ecke des Fensters
 	static void RenderRotatingTriangle(ImDrawList* drawList, ImVec2 screenSize) {
 		static float timeElapsed = 0.0f;
@@ -322,7 +329,7 @@ public:
 		// Zeichnen des Dreiecks mit der dynamischen Farbe
 		drawList->AddTriangleFilled(points[0], points[1], points[2], color);
 	}
-private:		
+private:
 
 };
 
@@ -341,7 +348,7 @@ public:
 		ReadProcessMemory(hProcess, reinterpret_cast<LPCVOID>(address), &buffer, sizeof(T), nullptr);
 		return buffer;
 	}
-	
+
 	HWND FindWindowByProcessId(DWORD processId)
 	{
 		HWND hwnd = GetTopWindow(NULL);
@@ -767,7 +774,7 @@ public:
 					ImU32 color = GetEntityColor(entity.name);
 					std::ostringstream oss;
 					oss << entity.name << " " << std::fixed << std::setprecision(2) << entity.distance << "m";
-					RenderOutlinedText(drawList,ImVec2(RenderHelper::CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, IM_COL32(0, 0, 0, 255), oss.str().c_str());
+					RenderOutlinedText(drawList, ImVec2(RenderHelper::CalcMiddlePos(screenPos.x, oss.str().c_str()), screenPos.y), color, IM_COL32(0, 0, 0, 255), oss.str().c_str());
 				}
 			}
 		}
