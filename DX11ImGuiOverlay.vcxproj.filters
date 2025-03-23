@@ -77,6 +77,9 @@
     <ClInclude Include="Overlay.h">
       <Filter>Headerdateien</Filter>
     </ClInclude>
+    <ClInclude Include="Offset.h">
+      <Filter>Headerdateien</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="imgui\imgui.ini">

@@ -418,16 +418,35 @@ public:
 class ExBytePatcher {
 private:
 	HANDLE hProcess;
-	uintptr_t address;
-	std::vector<BYTE> originalBytes;
-	size_t patchSize;
-	bool isPatched = false;  // Ob der Patch aktiv ist
+	uintptr_t address;        // Originaladresse, an der gepatcht wird
+	std::vector<BYTE> originalBytes;  // Gesicherte Originalbytes
+	size_t patchSize;         // Anzahl der überschriebenen Bytes
+	bool isPatched = false;   // Ob der Patch aktiv ist
+
+	// Code-Cave-Verwaltung
+	uintptr_t codeCaveAddress = 0; // Hier wird die allozierte Code-Cave gespeichert
+	size_t    codeCaveSize = 0; // Größe der alloz. Code-Cave
+
+	// Statische Liste aller aktiven Patcher
+	static inline std::vector<ExBytePatcher*> activePatchers;
 
 public:
 	ExBytePatcher(HANDLE process, uintptr_t addr, size_t size)
-		: hProcess(process), address(addr), patchSize(size) {
+		: hProcess(process), address(addr), patchSize(size)
+	{
+		// Damit RestoreAll() am Ende weiß, welche Patcher zurückgepatcht werden müssen
+		activePatchers.push_back(this);
 	}
 
+	// Destruktor: Sicher stellen, dass gepatchte Bytes zurückgesetzt werden
+	// und dieses Objekt aus der aktiven Liste entfernen.
+	~ExBytePatcher() {
+		Restore();
+		auto it = std::find(activePatchers.begin(), activePatchers.end(), this);
+		if (it != activePatchers.end()) {
+			activePatchers.erase(it);
+		}
+	}
 	void TogglePatch(bool enablePatch) {
 		if (enablePatch && !isPatched) {
 			if (Patch()) {
@@ -440,7 +459,14 @@ public:
 			}
 		}
 	}
+	// Statistische Methode zum Rückpatchen aller aktiven Patcher
+	static void RestoreAll() {
+		for (auto* patcher : activePatchers) {
+			patcher->Restore();
+		}
+	}
 
+	// Patch nur mit NOPs (Beispiel aus deinem Code) – hier nicht primär genutzt
 	bool Patch() {
 		if (originalBytes.empty()) {
 			originalBytes.resize(patchSize);
@@ -450,12 +476,113 @@ public:
 		return WriteProcessMemory(hProcess, (LPVOID)address, nopBytes.data(), patchSize, NULL);
 	}
 
+	// Schreibt die ursprünglichen Bytes zurück und gibt den Code-Cave-Speicher frei
 	bool Restore() {
+		if (!isPatched) return false;
 		if (originalBytes.empty()) return false;
-		return WriteProcessMemory(hProcess, (LPVOID)address, originalBytes.data(), patchSize, NULL);
+
+		// Original-Bytes zurückschreiben
+		if (!WriteProcessMemory(hProcess, (LPVOID)address, originalBytes.data(), patchSize, NULL)) {
+			std::cerr << "[!] Fehler beim Zurückschreiben der Original-Bytes.\n";
+			return false;
+		}
+
+		// Code-Cave-Speicher freigeben
+		if (codeCaveAddress != 0) {
+			VirtualFreeEx(hProcess, reinterpret_cast<LPVOID>(codeCaveAddress), 0, MEM_RELEASE);
+			codeCaveAddress = 0;
+			codeCaveSize = 0;
+		}
+
+		isPatched = false;
+		return true;
 	}
 
-	bool IsPatched() { return isPatched; }
+	// Hilfsfunktionen zum Schreiben von Jumps
+	void WriteJump32(HANDLE hProcess, uintptr_t sourceAddress, uintptr_t destinationAddress) {
+		DWORD offset = (DWORD)(destinationAddress - (sourceAddress + 5)); // Relativer Offset
+
+		BYTE jmpInstruction[5] = { 0xE9 }; // JMP opcode
+		memcpy(&jmpInstruction[1], &offset, sizeof(DWORD));
+
+		WriteProcessMemory(hProcess, (LPVOID)sourceAddress, jmpInstruction, sizeof(jmpInstruction), NULL);
+	}
+	void WriteJump64(HANDLE hProcess, uintptr_t sourceAddress, uintptr_t destinationAddress) {
+		// Absolute Jump über RIP: FF 25 00 00 00 00 + 8-Byte-Ziel
+		BYTE jmpInstruction[14] = {
+			0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, // FF 25 [RIP+0]
+			0, 0, 0, 0, 0, 0, 0, 0              // Platz für Zieladresse (8 Bytes)
+		};
+
+		// Zieladresse in den letzten 8 Bytes
+		memcpy(&jmpInstruction[6], &destinationAddress, sizeof(uintptr_t));
+
+		// Jump an sourceAddress schreiben
+		WriteProcessMemory(hProcess, reinterpret_cast<LPVOID>(sourceAddress),
+			jmpInstruction, sizeof(jmpInstruction), nullptr);
+	}
+
+	// Automatischer Detour, der eine Code-Cave im Zielprozess alloziert und den Originalcode dorthin umlenkt
+	bool AutoDetourFunction64(size_t stolenBytes) {
+		// Wir brauchen für den absoluten Jump 14 Bytes (besser: Disassemblieren!)
+		if (stolenBytes < 14) {
+			std::cerr << "[!] Fehler: stolenBytes muss >= 14 sein.\n";
+			return false;
+		}
+
+		// 1) Code-Cave im Zielprozess allozieren
+		codeCaveSize = stolenBytes + 14; // Platz für geklaute Bytes + Jump zurück
+		LPVOID cavePtr = VirtualAllocEx(hProcess, NULL, codeCaveSize,
+			MEM_COMMIT | MEM_RESERVE,
+			PAGE_EXECUTE_READWRITE);
+		if (!cavePtr) {
+			std::cerr << "[!] Fehler: Konnte Code-Cave nicht allozieren.\n";
+			return false;
+		}
+		codeCaveAddress = reinterpret_cast<uintptr_t>(cavePtr);
+
+		// 2) Original-Bytes lesen (falls noch nicht geschehen)
+		if (originalBytes.empty()) {
+			originalBytes.resize(stolenBytes);
+			SIZE_T bytesRead = 0;
+			if (!ReadProcessMemory(hProcess, (LPCVOID)address,
+				originalBytes.data(), stolenBytes, &bytesRead)
+				|| bytesRead != stolenBytes)
+			{
+				std::cerr << "[!] Fehler beim Lesen der Original-Bytes.\n";
+				VirtualFreeEx(hProcess, cavePtr, 0, MEM_RELEASE);
+				codeCaveAddress = 0;
+				codeCaveSize = 0;
+				return false;
+			}
+			patchSize = stolenBytes; // Wir merken uns, wie viele Bytes überschrieben werden
+		}
+
+		// 3) Geklaute Bytes in die Code-Cave schreiben
+		SIZE_T bytesWritten = 0;
+		if (!WriteProcessMemory(hProcess, cavePtr, originalBytes.data(), stolenBytes, &bytesWritten)
+			|| bytesWritten != stolenBytes)
+		{
+			std::cerr << "[!] Fehler beim Schreiben in die Code-Cave.\n";
+			VirtualFreeEx(hProcess, cavePtr, 0, MEM_RELEASE);
+			codeCaveAddress = 0;
+			codeCaveSize = 0;
+			return false;
+		}
+
+		// 4) Jump vom Ende der Code-Cave zurück in den Originalcode (nach den gestohlenen Bytes)
+		uintptr_t codeCaveJmpBack = codeCaveAddress + stolenBytes;
+		uintptr_t originalReturn = address + stolenBytes;
+		WriteJump64(hProcess, codeCaveJmpBack, originalReturn);
+
+		// 5) Jump vom Originalcode in die Code-Cave
+		WriteJump64(hProcess, address, codeCaveAddress);
+
+		isPatched = true;
+		return true;
+	}
+
+	bool IsPatched() const { return isPatched; }
 };
 class MemoryManager {
 private:
@@ -549,175 +676,7 @@ public:
 		return GetAddressFromSignatureEx(signature, moduleBase, moduleSize);
 	}
 
-	// ✅ Detouring einer Funktion in eine CodeCave
-	void DetourEx(LPVOID targetFunction, LPVOID codecaveAddress) {
-		SIZE_T bytesWritten;
-		BYTE clearByte[] = { 0x90 };
-
-		// CodeCave leeren
-		for (int i = 0; i < 100; i++) {
-			WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + i), &clearByte, sizeof(clearByte), NULL);
-		}
-
-		// Sprung zur CodeCave
-		BYTE jmpBytes[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-		WriteProcessMemory(hProcess, targetFunction, jmpBytes, sizeof(jmpBytes), NULL);
-		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)targetFunction + 6), &codecaveAddress, sizeof(codecaveAddress), NULL);
-
-		// Ursprüngliche Funktion in CodeCave wiederherstellen
-		BYTE originalBytes[] = {
-			0x48, 0x8B, 0x89, 0xB0, 0x00, 0x00, 0x00, 0x0F, 0x28, 0xF3, 0x49, 0x8B, 0xD8, 0x48, 0x85, 0xC9
-		};
-		WriteProcessMemory(hProcess, codecaveAddress, originalBytes, sizeof(originalBytes), &bytesWritten);
-
-		// Rücksprung zu alter Adresse
-		BYTE backJmpBytes[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-		uintptr_t backOffset = (uintptr_t)((uintptr_t)targetFunction + 0x10);
-		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + 30), backJmpBytes, sizeof(backJmpBytes), NULL);
-		WriteProcessMemory(hProcess, (LPVOID)((ULONGLONG)codecaveAddress + 36), &backOffset, sizeof(backOffset), NULL);
-	}
-
-	// ✅ Funktion mit NOP überschreiben
-	void NopFunc(LPVOID targetFunction, int bytes) {
-		std::vector<BYTE> nopBytes(bytes, 0x90);
-		WriteProcessMemory(hProcess, targetFunction, nopBytes.data(), bytes, NULL);
-	}
-	void PatchAndCaptureAllRegisters(LPVOID targetFunction, SIZE_T patchSize, std::map<std::string, uintptr_t>& registerStorage) {
-		// Register-Namen für Übersicht
-		std::vector<std::string> registers = { "RAX", "RBX", "RCX", "RDX", "RSI", "RDI", "RBP", "R8", "R9", "R10", "R11", "R12", "R13", "R14", "R15" };
-
-		// Speicher für jedes Register allokieren
-		for (const auto& reg : registers) {
-			uintptr_t addr = (uintptr_t)VirtualAllocEx(hProcess, NULL, sizeof(uintptr_t), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-			registerStorage[reg] = addr;
-		}
-
-		// -------- Original Bytes sichern --------
-		std::vector<BYTE> originalBytes(patchSize);
-		ReadProcessMemory(hProcess, targetFunction, originalBytes.data(), patchSize, NULL);
-
-		// CodeCave allokieren (groß genug für alles)
-		LPVOID codeCave = VirtualAllocEx(hProcess, NULL, 0x500, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
-		std::vector<BYTE> caveBytes;
-
-		// -------- Register speichern --------
-		for (const auto& reg : registers) {
-			uintptr_t addr = registerStorage[reg];
-
-			if (reg == "RAX" || reg == "RCX" || reg == "RDX") {
-				caveBytes.push_back(0x48); caveBytes.push_back(0xA3); // mov [absolute], rX
-				for (size_t i = 0; i < sizeof(uintptr_t); i++) {
-					caveBytes.push_back(((BYTE*)&addr)[i]);
-				}
-			}
-			else {
-				caveBytes.push_back(0x48); caveBytes.push_back(0x89);
-
-				if (reg == "RBX") caveBytes.push_back(0x1D);
-				else if (reg == "RSI") caveBytes.push_back(0x35);
-				else if (reg == "RDI") caveBytes.push_back(0x3D);
-				else if (reg == "RBP") caveBytes.push_back(0x2D);
-				else if (reg.substr(0, 1) == "R") {
-					int regNum = std::stoi(reg.substr(1));
-					caveBytes.push_back(0x8C | ((regNum - 8) << 3));
-				}
-
-				uintptr_t relAddr = addr - ((uintptr_t)codeCave + caveBytes.size() + 4);
-				for (int i = 0; i < 4; i++) {
-					caveBytes.push_back((BYTE)((relAddr) & 0xFF));
-					relAddr >>= 8;
-				}
-			}
-		}
-
-		// -------- Original Bytes reinschreiben --------
-		caveBytes.insert(caveBytes.end(), originalBytes.begin(), originalBytes.end());
-
-		// -------- Rücksprung --------
-		BYTE jmpBack[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-		caveBytes.insert(caveBytes.end(), jmpBack, jmpBack + sizeof(jmpBack));
-
-		uintptr_t returnAddr = (uintptr_t)targetFunction + patchSize;
-		for (size_t i = 0; i < sizeof(uintptr_t); i++) {
-			caveBytes.push_back(((BYTE*)&returnAddr)[i]);
-		}
-
-		// Ganze CodeCave reinschreiben
-		WriteProcessMemory(hProcess, codeCave, caveBytes.data(), caveBytes.size(), NULL);
-
-		// -------- Detour setzen → Jump zur CodeCave --------
-		BYTE jumpToCave[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-		WriteProcessMemory(hProcess, targetFunction, jumpToCave, sizeof(jumpToCave), NULL);
-		WriteProcessMemory(hProcess, (LPVOID)((uintptr_t)targetFunction + 6), &codeCave, sizeof(uintptr_t), NULL);
-
-		// Optional: Rest NOP'en, wenn Patch größer als 14
-		if (patchSize > 14) {
-			std::vector<BYTE> nopBytes(patchSize - 14, 0x90);
-			WriteProcessMemory(hProcess, (LPVOID)((uintptr_t)targetFunction + 14), nopBytes.data(), nopBytes.size(), NULL);
-		}
-	}
-
-	void PatchWithCustomCode(LPVOID targetFunction, SIZE_T patchSize, const std::vector<BYTE>& customCode) {
-		// 1. Original Bytes sichern
-		std::vector<BYTE> originalBytes(patchSize);
-		ReadProcessMemory(hProcess, targetFunction, originalBytes.data(), patchSize, NULL);
-
-		// 2. CodeCave allokieren
-		LPVOID codeCave = VirtualAllocEx(hProcess, NULL, 0x500, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE);
-
-		// 3. Gesamten CodeCave Content bauen
-		std::vector<BYTE> caveBytes;
-
-		// --- Custom Code reinschreiben
-		caveBytes.insert(caveBytes.end(), customCode.begin(), customCode.end());
-
-		// --- Original Bytes reinschreiben
-		caveBytes.insert(caveBytes.end(), originalBytes.begin(), originalBytes.end());
-
-		// --- Rücksprung zum Original
-		BYTE jmpBack[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-		caveBytes.insert(caveBytes.end(), jmpBack, jmpBack + sizeof(jmpBack));
-
-		uintptr_t returnAddr = (uintptr_t)targetFunction + patchSize;
-		for (size_t i = 0; i < sizeof(uintptr_t); i++) {
-			caveBytes.push_back(((BYTE*)&returnAddr)[i]);
-		}
-
-		// 4. CodeCave schreiben
-		WriteProcessMemory(hProcess, codeCave, caveBytes.data(), caveBytes.size(), NULL);
-
-		// 5. Detour in Originalfunktion
-		BYTE jumpToCave[] = { 0xFF, 0x25, 0x00, 0x00, 0x00, 0x00 };
-		WriteProcessMemory(hProcess, targetFunction, jumpToCave, sizeof(jumpToCave), NULL);
-		WriteProcessMemory(hProcess, (LPVOID)((uintptr_t)targetFunction + 6), &codeCave, sizeof(uintptr_t), NULL);
-
-		// Optional: Rest NOP'en
-		if (patchSize > 14) {
-			std::vector<BYTE> nopBytes(patchSize - 14, 0x90);
-			WriteProcessMemory(hProcess, (LPVOID)((uintptr_t)targetFunction + 14), nopBytes.data(), nopBytes.size(), NULL);
-		}
-	}
-
-
-	void WriteJump32(HANDLE hProcess, uintptr_t sourceAddress, uintptr_t destinationAddress) {
-		DWORD offset = (DWORD)(destinationAddress - (sourceAddress + 5)); // Relative Offset berechnen
-
-		BYTE jmpInstruction[5] = { 0xE9 }; // JMP opcode
-		memcpy(&jmpInstruction[1], &offset, sizeof(DWORD)); // Offset anhängen
-
-		WriteProcessMemory(hProcess, (LPVOID)sourceAddress, jmpInstruction, sizeof(jmpInstruction), NULL);
-	}
-	void WriteJump64(HANDLE hProcess, uintptr_t sourceAddress, uintptr_t destinationAddress) {
-		// Absolute Jump über RIP
-		BYTE jmpInstruction[14] = {
-			0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, // FF25 [RIP+0]
-			0, 0, 0, 0, 0, 0, 0, 0              // Platz für Zieladresse (8 Bytes)
-		};
-		memcpy(&jmpInstruction[6], &destinationAddress, sizeof(uintptr_t));
-
-		WriteProcessMemory(hProcess, (LPVOID)sourceAddress, jmpInstruction, sizeof(jmpInstruction), NULL);
-	}
+	
 	
 };
 class FlyHack {
