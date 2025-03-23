@@ -2,11 +2,12 @@
 #include <vector>
 
 namespace Offsets {
-    inline constexpr DWORD PlayerHealth = 0x12345678;
-    inline constexpr DWORD PlayerPosition = 0x87654321;
+    inline constexpr uintptr_t EntlistAdresse = 0x19AF3778CD0;
+    inline constexpr uintptr_t ViewMatrixAdresse = 0x19AEC5D0F20;
+	inline constexpr uintptr_t SSystemGlobalEnvironment = 0xD2F0;
+	inline constexpr uintptr_t CEntitySystem = 0xA0;
 }
 
 namespace Signatures {
-    inline const std::vector<int> PlayerHealthSignature = { 0x8B, 0x45, -1, 0x8B, 0x4D, -1, 0x89, 0x45, -1 };
-    inline const std::vector<int> PlayerPositionSignature = { 0xA1, -1, -1, -1, -1, 0x8B, 0x40, 0x04, 0x89, 0x45, -1 };
+    inline const std::vector<int> ViewMatrixFunc = { 0xF3, 0x0F, 0x11, 0x96, 0xC0, 0x00, 0x00, 0x00, 0x0F };
 }

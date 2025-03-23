@@ -175,10 +175,13 @@ void RenderOverlay(InitHax Hax)
     
     MemoryManager MemManager(Hax.hProcess);
     RenderHelper renderHelper(Hax.hProcess);
-    ExBytePatcher patcher(Hax.hProcess, MemManager.ModuleBaseAdresse + 0x4504B9, 6);  // 6-Byte NOP Patch
-    FlyHack flyhack(Hax.hProcess, MemManager.ModuleBaseAdresse);
-    MemManager.ModuleBaseAdresse = MemManager.GetModuleBaseAddressEx(L"WHGame.DLL", Hax.ProcID, size);
-    EntityManager entityManager(Hax.hProcess, MemManager.ModuleBaseAdresse);
+    ExBytePatcher patcher(Hax.hProcess, MemManager.ModuleBaseAdresseDLL + 0x4504B9, 6);  // 6-Byte NOP Patch
+    FlyHack flyhack(Hax.hProcess, MemManager.ModuleBaseAdresseDLL);
+    MemManager.ModuleBaseAdresseDLL = MemManager.GetModuleBaseAddressEx(L"WHGame.DLL", Hax.ProcID, size);
+	MemManager.ModuleBaseAdresseExe = MemManager.GetModuleBaseAddressEx(L"KingdomCome.exe", Hax.ProcID, size);
+
+    EntityManager entityManager(Hax.hProcess, MemManager.ModuleBaseAdresseDLL);
+    entityManager.entityListAddress = MemManager.FindDMAAddy(Hax.hProcess, MemManager.ModuleBaseAdresseExe + Offsets::SSystemGlobalEnvironment, { Offsets::CEntitySystem });
     FPSLimiter fpsLimiter(100.0f);
 
     MSG msg;
@@ -258,14 +261,14 @@ void RenderOverlay(InitHax Hax)
         ImGui::End();
         if (flyhack.flyhackstatus)
         {
-            FlyHack flyhack(Hax.hProcess, MemManager.ModuleBaseAdresse);
+            FlyHack flyhack(Hax.hProcess, MemManager.ModuleBaseAdresseDLL);
             flyhack.Update();
         }
         if (Hax.ProcID && renderHelper.ESP_Status) {
-            renderHelper.CamPos = Hax.Read<Vector3>(renderHelper.CamPosAdr + MemManager.ModuleBaseAdresse);
-            bool cutscene = Hax.Read<bool>(renderHelper.CutsceneActive + MemManager.ModuleBaseAdresse);
-            renderHelper.MatrixAdr = MemoryManager::FindDMAAddy(Hax.hProcess, (MemManager.ModuleBaseAdresse + 0x0526C9A0), { 0x50,0x120,0xB0,0x4C8 });
-            ReadProcessMemory(Hax.hProcess, (LPVOID)renderHelper.MatrixAdr, &renderHelper.Matrix, sizeof(renderHelper.Matrix), NULL);
+            renderHelper.CamPos = Hax.Read<Vector3>(renderHelper.CamPosAdr + MemManager.ModuleBaseAdresseDLL);
+            bool cutscene = Hax.Read<bool>(renderHelper.CutsceneActive + MemManager.ModuleBaseAdresseDLL);
+            //renderHelper.MatrixAdr = MemoryManager::FindDMAAddy(Hax.hProcess, (MemManager.ModuleBaseAdresse + 0x0526C9A0), { 0x50,0x120,0xB0,0x4C8 });
+            ReadProcessMemory(Hax.hProcess, (LPVOID)Offsets::ViewMatrixAdresse, &renderHelper.Matrix, sizeof(renderHelper.Matrix), NULL);
             if (!cutscene || !renderHelper.useCutsceneCheck) {
                 entityManager.SetCameraPosition(renderHelper.CamPos, renderHelper.maxDistance);
                 entityManager.RenderEntities(drawlist, renderHelper.WindowScreen.x, renderHelper.WindowScreen.y, renderHelper.Matrix);

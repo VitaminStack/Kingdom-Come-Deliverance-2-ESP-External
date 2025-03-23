@@ -21,6 +21,7 @@
 #include <tchar.h>
 #include "imgui/imgui_internal.h"
 #include <map>
+#include "Offset.h"
 
 #pragma comment(lib, "gdiplus.lib")
 
@@ -507,80 +508,7 @@ public:
 
 		WriteProcessMemory(hProcess, (LPVOID)sourceAddress, jmpInstruction, sizeof(jmpInstruction), NULL);
 	}
-	void WriteJump64(HANDLE hProcess, uintptr_t sourceAddress, uintptr_t destinationAddress) {
-		// Absolute Jump über RIP: FF 25 00 00 00 00 + 8-Byte-Ziel
-		BYTE jmpInstruction[14] = {
-			0xFF, 0x25, 0x00, 0x00, 0x00, 0x00, // FF 25 [RIP+0]
-			0, 0, 0, 0, 0, 0, 0, 0              // Platz für Zieladresse (8 Bytes)
-		};
-
-		// Zieladresse in den letzten 8 Bytes
-		memcpy(&jmpInstruction[6], &destinationAddress, sizeof(uintptr_t));
-
-		// Jump an sourceAddress schreiben
-		WriteProcessMemory(hProcess, reinterpret_cast<LPVOID>(sourceAddress),
-			jmpInstruction, sizeof(jmpInstruction), nullptr);
-	}
-
-	// Automatischer Detour, der eine Code-Cave im Zielprozess alloziert und den Originalcode dorthin umlenkt
-	bool AutoDetourFunction64(size_t stolenBytes) {
-		// Wir brauchen für den absoluten Jump 14 Bytes (besser: Disassemblieren!)
-		if (stolenBytes < 14) {
-			std::cerr << "[!] Fehler: stolenBytes muss >= 14 sein.\n";
-			return false;
-		}
-
-		// 1) Code-Cave im Zielprozess allozieren
-		codeCaveSize = stolenBytes + 14; // Platz für geklaute Bytes + Jump zurück
-		LPVOID cavePtr = VirtualAllocEx(hProcess, NULL, codeCaveSize,
-			MEM_COMMIT | MEM_RESERVE,
-			PAGE_EXECUTE_READWRITE);
-		if (!cavePtr) {
-			std::cerr << "[!] Fehler: Konnte Code-Cave nicht allozieren.\n";
-			return false;
-		}
-		codeCaveAddress = reinterpret_cast<uintptr_t>(cavePtr);
-
-		// 2) Original-Bytes lesen (falls noch nicht geschehen)
-		if (originalBytes.empty()) {
-			originalBytes.resize(stolenBytes);
-			SIZE_T bytesRead = 0;
-			if (!ReadProcessMemory(hProcess, (LPCVOID)address,
-				originalBytes.data(), stolenBytes, &bytesRead)
-				|| bytesRead != stolenBytes)
-			{
-				std::cerr << "[!] Fehler beim Lesen der Original-Bytes.\n";
-				VirtualFreeEx(hProcess, cavePtr, 0, MEM_RELEASE);
-				codeCaveAddress = 0;
-				codeCaveSize = 0;
-				return false;
-			}
-			patchSize = stolenBytes; // Wir merken uns, wie viele Bytes überschrieben werden
-		}
-
-		// 3) Geklaute Bytes in die Code-Cave schreiben
-		SIZE_T bytesWritten = 0;
-		if (!WriteProcessMemory(hProcess, cavePtr, originalBytes.data(), stolenBytes, &bytesWritten)
-			|| bytesWritten != stolenBytes)
-		{
-			std::cerr << "[!] Fehler beim Schreiben in die Code-Cave.\n";
-			VirtualFreeEx(hProcess, cavePtr, 0, MEM_RELEASE);
-			codeCaveAddress = 0;
-			codeCaveSize = 0;
-			return false;
-		}
-
-		// 4) Jump vom Ende der Code-Cave zurück in den Originalcode (nach den gestohlenen Bytes)
-		uintptr_t codeCaveJmpBack = codeCaveAddress + stolenBytes;
-		uintptr_t originalReturn = address + stolenBytes;
-		WriteJump64(hProcess, codeCaveJmpBack, originalReturn);
-
-		// 5) Jump vom Originalcode in die Code-Cave
-		WriteJump64(hProcess, address, codeCaveAddress);
-
-		isPatched = true;
-		return true;
-	}
+	
 
 	bool IsPatched() const { return isPatched; }
 };
@@ -590,7 +518,8 @@ private:
 
 public:
 	MemoryManager(HANDLE process) : hProcess(process) {}
-	uintptr_t ModuleBaseAdresse;
+	uintptr_t ModuleBaseAdresseExe;
+	uintptr_t ModuleBaseAdresseDLL;
 
 	// ✅ Statische Methode: FindDMAAddy kann direkt ohne Instanz genutzt werden
 	static uintptr_t FindDMAAddy(HANDLE hProc, uintptr_t ptr, const std::vector<unsigned int>& offsets) {
@@ -732,7 +661,7 @@ private:
 	};
 
 	HANDLE hProcess;
-	uintptr_t entityListAddress;
+	
 	std::unordered_map<uintptr_t, Entity> entityCache;
 	std::vector<uintptr_t> entityAddresses;
 	std::atomic<bool> stopThread{ false };
@@ -770,6 +699,7 @@ private:
 
 public:
 	int validEntities;
+	uintptr_t entityListAddress;
 
 	EntityManager(HANDLE process, uintptr_t baseAddress)
 		: hProcess(process), entityListAddress(baseAddress) {
@@ -810,13 +740,12 @@ public:
 
 	void UpdateEntityAddresses() {
 		const int entityCount = 3000;
-		uintptr_t entListAdr = MemoryManager::FindDMAAddy(hProcess, entityListAddress + 0x052A39D0, { 0x0 });
 
 		std::vector<uintptr_t> updatedAddresses;
 		updatedAddresses.reserve(entityCount);
 
 		for (int i = 0; i < entityCount; ++i) {
-			uintptr_t pointerAddress = entListAdr + (i * 0x8);
+			uintptr_t pointerAddress = entityListAddress + (i * 0x8);
 			uintptr_t entBase = 0;
 
 			if (ReadProcessMemory(hProcess, (LPVOID)pointerAddress, &entBase, sizeof(entBase), nullptr)) {
@@ -835,8 +764,8 @@ public:
 		{
 			std::lock_guard<std::mutex> lock(entityMutex);
 			for (uintptr_t entBase : entityAddresses) {
-				uintptr_t posAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0x30 });
-				uintptr_t nameAddr = MemoryManager::FindDMAAddy(hProcess, entBase + 0x18, { 0xE8, 0x0 });
+				uintptr_t posAddr = MemoryManager::FindDMAAddy(hProcess, entBase, { 0x30 });
+				uintptr_t nameAddr = MemoryManager::FindDMAAddy(hProcess, entBase, { 0xE8, 0x0 });
 
 				Vector3 pos;
 				ReadProcessMemory(hProcess, (LPVOID)posAddr, &pos, sizeof(pos), nullptr);
